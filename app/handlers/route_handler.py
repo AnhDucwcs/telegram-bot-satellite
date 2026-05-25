@@ -23,6 +23,19 @@ async def cmd_route(message: types.Message):
     await message.answer("Bạn đã bắt đầu quá trình chọn lộ trình.\n\n"
                          "Vui lòng gửi vị trí điểm xuất phát của bạn bằng cách sử dụng tính năng chia sẻ vị trí của Telegram.\n\n"
                          "Nếu bạn muốn hủy, hãy nhập /cancel.")
+    
+@router.message(Command("cancel"))
+async def cmd_cancel(message: types.Message):
+    session_id = message.chat.id
+    if session_manager.has_session(session_id):
+        session_manager.clear_session(session_id)
+        try:
+            session_manager.ensure_cleanup(session_id)
+        except Exception as e:
+            logger.error(f"Lỗi khi cleanup session sau khi hủy: {e}")
+        await message.answer("Đã hủy quá trình chọn lộ trình. Bạn có thể nhập /route để bắt đầu lại.")
+    else:
+        await message.answer("Bạn chưa bắt đầu quá trình chọn lộ trình. Hãy nhập /route để bắt đầu.")
 
 @router.message(F.location)
 async def handle_location(message: types.Message, app_state):
