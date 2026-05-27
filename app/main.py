@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from aiogram.types import Update
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types.web_app_info import WebAppInfo
 from pydantic import ValidationError
 from app.services.ai_client import AIClient
 from app.core.config import settings
@@ -111,9 +113,16 @@ async def receive_result(request: Request):
         if distance_km is not None and estimated_time_min is not None:
             text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
         if route_id:
-            text += f"\nMã lộ trình: {route_id}"
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Xem bản đồ tương tác", 
+                            web_app=WebAppInfo(url=f"https://lnanhduc12-ai-traffic-routing-bot.hf.space/app/index.html?id={route_id}")
+                        )
+                    ]
+                ])
 
-        await telegram_bot.bot.send_message(chat_id=chat_id, text=text)
+        await telegram_bot.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
 
         if navigation_url:
             await telegram_bot.bot.send_message(chat_id=chat_id, text=f"Google Maps: {navigation_url}")
