@@ -74,7 +74,7 @@ async def telegram_webhook(request: Request):
 
 @app.post("/internal/result")
 async def receive_result(request: Request):
-    secret_header = request.headers.get("x_internal_api_key")
+    secret_header = request.headers.get("x-internal-api-key")
     if secret_header != settings.INTERNAL_API_KEY:
         logger.warning("Received internal result with invalid API key")
         return {"status": "invalid API key"}

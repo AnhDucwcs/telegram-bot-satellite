@@ -15,7 +15,7 @@ class AIClient:
 
     async def get_route(self, start_lat, start_lng, end_lat, end_lng, user_id: str, conversation_id: str):
         headers = {
-            "x_internal_api_key": settings.INTERNAL_API_KEY,
+            "x-internal-api-key": settings.INTERNAL_API_KEY,
             "Content-Type": "application/json"
         }
         payload = {
