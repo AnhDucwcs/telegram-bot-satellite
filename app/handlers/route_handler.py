@@ -37,6 +37,7 @@ async def cmd_cancel(message: types.Message):
 
 @router.message(F.location)
 async def handle_location(message: types.Message, app_state):
+    logger.info(f"handle_location invoked for chat={message.chat.id}, app_state present={app_state is not None}")
     session_id = message.chat.id
     lock = session_manager.get_or_create_lock(session_id)
     async with lock:
