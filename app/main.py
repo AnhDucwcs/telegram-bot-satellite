@@ -117,7 +117,7 @@ async def receive_result(request: Request):
             markup = InlineKeyboardMarkup(inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text="Xem bản đồ tương tác", 
+                            text="🗺️ Xem bản đồ tương tác", 
                             web_app=WebAppInfo(url=f"https://lnanhduc12-ai-traffic-routing-bot.hf.space/app/index.html?id={route_id}")
                         )
                     ]
@@ -126,7 +126,7 @@ async def receive_result(request: Request):
             await telegram_bot.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
 
         if navigation_url:
-            await telegram_bot.bot.send_message(chat_id=chat_id, text=f"Google Maps: {navigation_url}")
+            await telegram_bot.bot.send_message(chat_id=chat_id, text=f"<a href='{navigation_url}'>Xem trên Google Maps</a>", parse_mode="HTML")
     else:
         error_message = data.get("message") or "Không tìm thấy lộ trình phù hợp."
         await telegram_bot.bot.send_message(chat_id=chat_id, text=error_message)
