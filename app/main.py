@@ -53,12 +53,19 @@ async def telegram_webhook(request: Request):
         return {"status": "invalid token"}
     try:
         data = await request.json()
+        logger.info(f"Received webhook payload: {data}")
         # validate sớm để tránh feed những payload không hợp lệ vào aiogram dispatcher
         TelegramUpdate.model_validate(data)
         # dựng lên đối tượng Update của aiogram để feed vào dispatcher
         update = Update.model_validate(data)
         telegram_bot: TelegramBot = request.app.state.telegram_bot
-        await telegram_bot.dp.feed_update(telegram_bot.bot, update, request.app.state)
+        # provide app state to dispatcher handlers via dispatcher storage
+        telegram_bot.dp["app_state"] = request.app.state
+        try:
+            await telegram_bot.dp.feed_update(telegram_bot.bot, update)
+        except Exception as exc:
+            logger.error(f"Error while feeding update to dispatcher: {exc}")
+            raise
     except ValidationError as e:
         logger.error(f"Invalid Telegram update payload: {e}")
         return {"status": "invalid payload"}
