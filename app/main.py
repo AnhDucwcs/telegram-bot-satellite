@@ -82,8 +82,8 @@ async def receive_result(request: Request):
         return {"status": "invalid API key"}
 
     data = await request.json()
-    conversation_id = data.get("conversation_id")
-    user_id = data.get("user_id")
+    conversation_id = data.get("conversationId") or data.get("conversation_id")
+    user_id = data.get("userId") or data.get("user_id")
 
     if not conversation_id:  # tạm thời: đang để user_id và conversation_id là message.chat.id
         if user_id is None:
@@ -110,6 +110,7 @@ async def receive_result(request: Request):
         route_id = data.get("route_id")
 
         text = "Đã tìm thấy lộ trình phù hợp."
+        markup = None
         if distance_km is not None and estimated_time_min is not None:
             text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
         if route_id:
@@ -122,7 +123,7 @@ async def receive_result(request: Request):
                     ]
                 ])
 
-        await telegram_bot.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+            await telegram_bot.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
 
         if navigation_url:
             await telegram_bot.bot.send_message(chat_id=chat_id, text=f"Google Maps: {navigation_url}")
