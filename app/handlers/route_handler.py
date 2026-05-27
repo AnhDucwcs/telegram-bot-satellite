@@ -1,12 +1,10 @@
 import aiogram
-import uuid
 from aiogram import types, F
 from aiogram.filters import Command
 from app.services.ai_client import AIClient
 from app.services.session_manager import session_manager
 from app.models.user_session import UserSession 
 from app.core.logger import logger
-from app.core.config import settings
 
 
 router = aiogram.Router()
@@ -54,24 +52,23 @@ async def handle_location(message: types.Message, app_state):
             elif session.state == "awaiting_destination":
                 end_lat = message.location.latitude
                 end_lng = message.location.longitude
-                route_id = str(uuid.uuid4())
+                conversation_id = str(message.chat.id)  # Sử dụng chat ID làm conversation ID cho đơn giản
                 session.state = "processing"
                 await message.answer("Đã nhận điểm đến. Đang tính toán lộ trình...")
-                # Gọi AI client để tính toán lộ trình
+                session_manager.bind_conversation(conversation_id, session_id)
                 ai_client: AIClient = app_state.ai_client
-                route_info = await ai_client.get_route(session.start_lat, session.start_lng, end_lat, end_lng)
-                if route_info:
-                    text = "Lộ trình tìm được:\n\n"
-                    text += f"**Khoảng cách**: {route_info['distance_km']} km\n"
-                    text += f"**Thời gian ước tính**: {route_info['estimated_time_mins']} phút\n"
-                    text += f"<a href='{route_info['navigation_url']}'>Xem trên Google Maps</a>"
-                    mini_app_url = f"{settings.AI_ENGINE_WEB_URL}/app/index.html?route_id={route_id}"
-                    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                        [types.InlineKeyboardButton(text="Xem trước lộ trình", web_app=types.WebAppInfo(url=mini_app_url))]
-                    ])
-                    await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
+                route_info = await ai_client.get_route(
+                    session.start_lat,
+                    session.start_lng,
+                    end_lat,
+                    end_lng,
+                    user_id=str(session_id),
+                    conversation_id=conversation_id,
+                )
+                if route_info and route_info.get("status") == "accepted":
+                    await message.answer("Yêu cầu đã được tiếp nhận. Mình sẽ gửi kết quả ngay khi tính xong.")
                 else:
-                    await message.answer("Xin lỗi, không tìm thấy lộ trình nào phù hợp.")
+                    await message.answer("Không thể gửi yêu cầu tính lộ trình lúc này. Vui lòng thử lại.")
                 session_manager.clear_session(session_id)
                 return
         except Exception as e:

@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
-from aiogram.types import Update
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Update
+from aiogram.types.web_app_info import WebAppInfo
 from app.services.ai_client import AIClient
 from app.core.config import settings
 from app.services.session_manager import session_manager
@@ -54,3 +55,45 @@ async def telegram_webhook(request: Request):
     await telegram_bot.dp.feed_update(telegram_bot.bot, update)
     return {"status": "ok"}
 
+@app.post("/internal/result")
+async def receive_result(request: Request):
+    secret_header = request.headers.get("x_internal_api_key")
+    if secret_header != settings.INTERNAL_API_KEY:
+        logger.warning("Received internal result with invalid API key")
+        return {"status": "invalid API key"}
+
+    data = await request.json()
+    conversation_id = data.get("conversationId") or data.get("conversation_id")
+    if not conversation_id:
+        logger.warning("Received internal result without conversation id")
+        return {"status": "missing conversation id"}
+
+    chat_id = session_manager.pop_chat_id_by_conversation(conversation_id)
+    if not chat_id:
+        logger.warning(f"No chat mapping found for conversation: {conversation_id}")
+        return {"status": "unknown conversation"}
+
+    status = data.get("status")
+    telegram_bot: TelegramBot = request.app.state.telegram_bot
+
+    if status == "success":
+        distance_km = data.get("distance_km")
+        estimated_time_min = data.get("estimated_time_min")
+        navigation_url = data.get("navigation_url")
+        route_id = data.get("route_id")
+
+        text = "Đã tìm thấy lộ trình phù hợp."
+        if distance_km is not None and estimated_time_min is not None:
+            text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
+        if route_id:
+            text += f"\nMã lộ trình: {route_id}"
+
+        await telegram_bot.bot.send_message(chat_id=chat_id, text=text)
+
+        if navigation_url:
+            await telegram_bot.bot.send_message(chat_id=chat_id, text=f"Google Maps: {navigation_url}")
+    else:
+        error_message = data.get("message") or "Không tìm thấy lộ trình phù hợp."
+        await telegram_bot.bot.send_message(chat_id=chat_id, text=error_message)
+
+    return {"status": "ok"}

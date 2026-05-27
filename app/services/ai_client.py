@@ -1,4 +1,3 @@
-import asyncio
 import httpx
 
 from app.core.config import settings
@@ -9,26 +8,34 @@ class AIClient:
         self.ai_engine_url = settings.AI_ENGINE_URL
         self.ai_engine_api_key = settings.AI_ENGINE_API_KEY
 
-    async def get_route(self, start_lat, start_lng, end_lat, end_lng):
+    def _build_callback_url(self) -> str:
+        if settings.INTERNAL_RESULT_CALLBACK_URL:
+            return settings.INTERNAL_RESULT_CALLBACK_URL
+        return f"{settings.BASE_URL}/internal/result"
+
+    async def get_route(self, start_lat, start_lng, end_lat, end_lng, user_id: str, conversation_id: str):
         headers = {
-            "Authorization": f"Bearer {self.ai_engine_api_key}",
+            "x_internal_api_key": settings.INTERNAL_API_KEY,
             "Content-Type": "application/json"
         }
         payload = {
-            "userId": "user123",
+            "userId": user_id,
+            "conversationId": conversation_id,
             "platform": "telegram",
+            "callbackUrl": self._build_callback_url(),
             "origin": {
-                "lat": start_lat,
-                "lng": start_lng
+                "latitude": start_lat,
+                "longitude": start_lng
             },
             "destination": {
-                "lat": end_lat,
-                "lng": end_lng
+                "latitude": end_lat,
+                "longitude": end_lng
             }
         }
         try:
-            response = await self.client.post(self.ai_engine_url, json=payload, headers=headers)
-            if response.status_code == 200:
+            routing_url = f"{self.ai_engine_url}/api/v1/routing/"
+            response = await self.client.post(routing_url, json=payload, headers=headers)
+            if response.status_code in (200, 202):
                 data = response.json()
                 return data
             else:
