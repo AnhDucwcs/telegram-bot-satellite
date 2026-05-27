@@ -37,7 +37,6 @@ async def cmd_cancel(message: types.Message):
 
 @router.message(F.location)
 async def handle_location(message: types.Message, app_state):
-    logger.info(f"handle_location invoked for chat={message.chat.id}, app_state present={app_state is not None}")
     session_id = message.chat.id
     lock = session_manager.get_or_create_lock(session_id)
     async with lock:
@@ -66,10 +65,6 @@ async def handle_location(message: types.Message, app_state):
                     user_id=str(session_id),
                     conversation_id=conversation_id,
                 )
-                if route_info and route_info.get("status") == "accepted":
-                    await message.answer("Yêu cầu đã được tiếp nhận. Mình sẽ gửi kết quả ngay khi tính xong.")
-                else:
-                    await message.answer("Không thể gửi yêu cầu tính lộ trình lúc này. Vui lòng thử lại.")
                 session_manager.clear_session(session_id)
                 return
         except Exception as e:
