@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Update
-from aiogram.types.web_app_info import WebAppInfo
+from aiogram.types import Update
+from pydantic import ValidationError
 from app.services.ai_client import AIClient
 from app.core.config import settings
+from app.models.request_models import TelegramUpdate
 from app.services.session_manager import session_manager
 from bot.telegram_bot import TelegramBot
 from app.core.logger import logger, setup_logging
@@ -50,10 +51,19 @@ async def telegram_webhook(request: Request):
     if secret_header != settings.WEBHOOK_SECRET:
         logger.warning("Received webhook with invalid secret token")
         return {"status": "invalid token"}
-    update = Update.model_validate(await request.json())
-    telegram_bot: TelegramBot = request.app.state.telegram_bot
-    await telegram_bot.dp.feed_update(telegram_bot.bot, update)
-    return {"status": "ok"}
+    try:
+        data = await request.json()
+        # validate sớm để tránh feed những payload không hợp lệ vào aiogram dispatcher
+        TelegramUpdate.model_validate(data)
+        # dựng lên đối tượng Update của aiogram để feed vào dispatcher
+        update = Update.model_validate(data)
+        telegram_bot: TelegramBot = request.app.state.telegram_bot
+        await telegram_bot.dp.feed_update(telegram_bot.bot, update, request.app.state)
+    except ValidationError as e:
+        logger.error(f"Invalid Telegram update payload: {e}")
+        return {"status": "invalid payload"}
+    finally:
+        return {"status": "ok"}  # Telegram yêu cầu response trong vòng 10s, nên dù có lỗi gì cũng phải trả về để tránh bị retry liên tục
 
 @app.post("/internal/result")
 async def receive_result(request: Request):
