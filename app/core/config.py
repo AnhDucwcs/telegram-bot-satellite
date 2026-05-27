@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     AI_ENGINE_API_KEY: str 
     BASE_URL: str 
     WEBHOOK_SECRET: str
+    INTERNAL_API_KEY: str
+    INTERNAL_RESULT_CALLBACK_URL: str | None = None
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
         
 settings = Settings()
