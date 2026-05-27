@@ -64,12 +64,13 @@ async def telegram_webhook(request: Request):
             await telegram_bot.dp.feed_update(telegram_bot.bot, update)
         except Exception as exc:
             logger.error(f"Error while feeding update to dispatcher: {exc}")
-            raise
     except ValidationError as e:
         logger.error(f"Invalid Telegram update payload: {e}")
         return {"status": "invalid payload"}
-    finally:
-        return {"status": "ok"}  # Telegram yêu cầu response trong vòng 10s, nên dù có lỗi gì cũng phải trả về để tránh bị retry liên tục
+    except Exception as exc:
+        logger.error(f"Unhandled error in Telegram webhook: {exc}")
+
+    return {"status": "ok"}  # Telegram yêu cầu response trong vòng 10s, nên không dùng finally để tránh nuốt lỗi logic
 
 @app.post("/internal/result")
 async def receive_result(request: Request):
@@ -79,15 +80,23 @@ async def receive_result(request: Request):
         return {"status": "invalid API key"}
 
     data = await request.json()
-    conversation_id = data.get("conversationId") or data.get("conversation_id")
-    if not conversation_id:
-        logger.warning("Received internal result without conversation id")
-        return {"status": "missing conversation id"}
+    conversation_id = data.get("conversation_id")
+    user_id = data.get("user_id")
 
-    chat_id = session_manager.pop_chat_id_by_conversation(conversation_id)
-    if not chat_id:
-        logger.warning(f"No chat mapping found for conversation: {conversation_id}")
-        return {"status": "unknown conversation"}
+    if not conversation_id:  # tạm thời: đang để user_id và conversation_id là message.chat.id
+        if user_id is None:
+            logger.warning("Received internal result without conversation id and user id")
+            return {"status": "missing conversation id"}
+        chat_id = int(user_id)
+        logger.warning("Received internal result without conversation id, using user id fallback")
+    else:
+        chat_id = session_manager.pop_chat_id_by_conversation(conversation_id)
+        if not chat_id:
+            if user_id is None:
+                logger.warning(f"No chat mapping found for conversation: {conversation_id}")
+                return {"status": "unknown conversation"}
+            chat_id = int(user_id)
+            logger.warning(f"No chat mapping found for conversation: {conversation_id}, using user id fallback")
 
     status = data.get("status")
     telegram_bot: TelegramBot = request.app.state.telegram_bot
