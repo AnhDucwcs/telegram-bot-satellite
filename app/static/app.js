@@ -71,6 +71,10 @@ document.addEventListener('DOMContentLoaded', () => {
         startNavMode();
     });
     
+    document.getElementById('btn-cancel-route').addEventListener('click', () => {
+        resetApp();
+    });
+    
     document.getElementById('btn-toggle-search').addEventListener('click', (e) => {
         const panel = document.querySelector('.search-panel');
         panel.classList.toggle('collapsed');
@@ -142,6 +146,14 @@ function clearInput(type) {
     checkAndShowButtons();
     suggestionsBox.classList.add('hidden');
     recentRoutesBox.classList.remove('hidden');
+}
+
+function resetApp() {
+    clearInput('origin');
+    clearInput('destination');
+    if (globalLocationMarker) {
+        map.setView(globalLocationMarker.getLatLng(), 17);
+    }
 }
 
 async function handleInputFocus(type) {
@@ -386,7 +398,7 @@ function useMyLocation(type) {
 // Routing Logic (Polling)
 // ==========================================
 
-document.getElementById('btn-show-route').addEventListener('click', calculateRoute);
+document.getElementById('btn-show-route').addEventListener('click', () => calculateRoute(false));
 document.getElementById('btn-navigate').addEventListener('click', () => {
     calculateRoute(true);
 });
@@ -508,6 +520,7 @@ function startNavMode() {
     document.getElementById('screen-search').classList.remove('active');
     document.getElementById('screen-navigation').classList.remove('hidden');
     document.getElementById('screen-navigation').classList.add('active');
+    document.querySelector('.search-panel').classList.add('hidden');
     
     tg.HapticFeedback.notificationOccurred('success');
     
@@ -660,7 +673,7 @@ document.getElementById('btn-stop-nav').addEventListener('click', () => {
     document.getElementById('screen-search').classList.add('active');
     document.querySelector('.search-panel').classList.remove('hidden');
     
-    if (routePolyline) map.removeLayer(routePolyline);
+    resetApp();
 });
 
 document.getElementById('btn-recenter').addEventListener('click', () => {
