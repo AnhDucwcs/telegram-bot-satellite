@@ -617,23 +617,30 @@ function handlePositionUpdate(position) {
         map.setView(userLatLng, map.getZoom());
     }
     
-    // Map Matching (Queue-based logic)
+    // Map Matching (Find closest segment)
     if (routeSegments.length === 0 || isRerouting) return;
     
-    let activeSegment = routeSegments[currentSegmentIndex];
-    let distanceToSegment = getDistanceToSegment(userLatLng, activeSegment.start, activeSegment.end);
+    let minDistance = Infinity;
+    let closestIndex = currentSegmentIndex;
     
-    // Check if user passed the end of the current segment
-    const distToEnd = map.distance(userLatLng, activeSegment.end);
-    
-    if (distToEnd < 20 && currentSegmentIndex < routeSegments.length - 1) {
-        currentSegmentIndex++;
-        activeSegment = routeSegments[currentSegmentIndex];
-        distanceToSegment = getDistanceToSegment(userLatLng, activeSegment.start, activeSegment.end);
+    // Check current segment and next 10 segments to see if we moved forward
+    const maxCheck = Math.min(routeSegments.length, currentSegmentIndex + 10);
+    for (let i = currentSegmentIndex; i < maxCheck; i++) {
+        const seg = routeSegments[i];
+        const dist = getDistanceToSegment(userLatLng, seg.start, seg.end);
+        if (dist < minDistance) {
+            minDistance = dist;
+            closestIndex = i;
+        }
     }
     
-    // Off-route detection: re-route
-    if (distanceToSegment > 50) {
+    // Advance progress
+    if (closestIndex > currentSegmentIndex) {
+        currentSegmentIndex = closestIndex;
+    }
+    
+    // Off-route detection: re-route if we are > 50m away from the closest valid segment
+    if (minDistance > 50) {
         isRerouting = true;
         showToast("Lệch tuyến! Đang tính lại...");
         tg.HapticFeedback.notificationOccurred('warning');
@@ -658,20 +665,32 @@ function handlePositionUpdate(position) {
 }
 
 function getDistanceToSegment(p, p1, p2) {
-    const d1 = map.distance(p, p1);
-    const L2 = map.distance(p1, p2);
+    const x = p.lng, y = p.lat;
+    const x1 = p1.lng, y1 = p1.lat;
+    const x2 = p2.lng, y2 = p2.lat;
     
-    if (L2 === 0) return d1;
+    const A = x - x1;
+    const B = y - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
     
-    const t = ((p.lat - p1.lat) * (p2.lat - p1.lat) + (p.lng - p1.lng) * (p2.lng - p1.lng)) / (L2 * L2);
-    const t_clamped = Math.max(0, Math.min(1, t));
+    const dot = A * C + B * D;
+    const len_sq = C * C + D * D;
     
-    const projection = L.latLng(
-        p1.lat + t_clamped * (p2.lat - p1.lat),
-        p1.lng + t_clamped * (p2.lng - p1.lng)
-    );
+    let param = -1;
+    if (len_sq !== 0) param = dot / len_sq;
     
-    return map.distance(p, projection);
+    let xx, yy;
+    if (param < 0) {
+        xx = x1; yy = y1;
+    } else if (param > 1) {
+        xx = x2; yy = y2;
+    } else {
+        xx = x1 + param * C;
+        yy = y1 + param * D;
+    }
+    
+    return map.distance(L.latLng(y, x), L.latLng(yy, xx));
 }
 
 function handlePositionError(err) {
