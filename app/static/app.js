@@ -520,7 +520,12 @@ function handleRouteResult(result, startNavigation) {
     
     if (startNavigation) {
         document.querySelector('.search-panel').classList.add('hidden');
-        startNavMode();
+        if (!isNavigating) {
+            startNavMode();
+        } else {
+            // Already navigating (Re-routing case)
+            initRouteSegments();
+        }
     } else {
         // Show info on screen 1
         actionButtons.classList.add('hidden');
@@ -537,8 +542,12 @@ let routeSegments = [];
 let currentSegmentIndex = 0;
 let isFollowing = true; // Auto-track user position
 let isRerouting = false; // Prevent re-routing spam
+let isNavigating = false; // Track if we are in navigation mode
 
 function startNavMode() {
+    if (isNavigating) return;
+    isNavigating = true;
+    
     document.getElementById('screen-search').classList.remove('active');
     document.getElementById('screen-navigation').classList.remove('hidden');
     document.getElementById('screen-navigation').classList.add('active');
@@ -679,6 +688,9 @@ function showToast(msg) {
 }
 
 function stopNavMode() {
+    isNavigating = false;
+    isRerouting = false;
+    
     if (watchId) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
@@ -740,12 +752,43 @@ function startSimulator() {
         simLng = 106.7009;
     }
     
-    // Show indicator
+    // Show indicator with Touch UI
     simIndicator = document.createElement('div');
     simIndicator.id = 'sim-indicator';
-    simIndicator.innerHTML = '🎮 SIM MODE<br><small>WASD: di chuyển | ←→: quay đầu | G: tắt</small>';
-    simIndicator.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(239,68,68,0.9);color:white;padding:8px 16px;border-radius:12px;z-index:9999;font-size:12px;font-weight:600;text-align:center;pointer-events:none;backdrop-filter:blur(8px);';
+    simIndicator.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:12px;border-radius:12px;z-index:9999;text-align:center;backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events:auto;';
+    
+    simIndicator.innerHTML = `
+        <div style="font-size:12px; font-weight:bold; margin-bottom:10px; color:#10b981;">🎮 SIMULATOR MODE</div>
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <button id="sim-btn-w" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">⬆️</button>
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <button id="sim-btn-a" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">⬅️</button>
+            <button id="sim-btn-s" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">⬇️</button>
+            <button id="sim-btn-d" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">➡️</button>
+        </div>
+        <button id="sim-btn-close" style="width:100%; padding:10px; border-radius:8px; border:none; background:#ef4444; color:white; font-weight:bold;">Tắt mô phỏng</button>
+    `;
+    
     document.body.appendChild(simIndicator);
+    
+    const bindBtn = (id, key) => {
+        const btn = document.getElementById(id);
+        const start = (e) => { e.preventDefault(); simKeys[key] = true; btn.style.background = '#10b981'; };
+        const end = (e) => { e.preventDefault(); simKeys[key] = false; btn.style.background = '#374151'; };
+        btn.addEventListener('touchstart', start, {passive:false});
+        btn.addEventListener('touchend', end, {passive:false});
+        btn.addEventListener('mousedown', start);
+        btn.addEventListener('mouseup', end);
+        btn.addEventListener('mouseleave', end);
+    };
+    
+    bindBtn('sim-btn-w', 'w');
+    bindBtn('sim-btn-a', 'a');
+    bindBtn('sim-btn-s', 's');
+    bindBtn('sim-btn-d', 'd');
+    
+    document.getElementById('sim-btn-close').addEventListener('click', stopSimulator);
     
     // Stop real GPS watch to avoid conflict
     if (watchId) {
@@ -830,6 +873,14 @@ function simKeyDown(e) {
 function simKeyUp(e) {
     simKeys[e.key] = false;
 }
+
+document.getElementById('btn-sim-mode').addEventListener('click', () => {
+    if (simActive) {
+        stopSimulator();
+    } else {
+        startSimulator();
+    }
+});
 
 // Toggle simulator with 'G' key
 document.addEventListener('keydown', (e) => {
