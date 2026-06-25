@@ -20,6 +20,7 @@ let originMarker = null;
 let destMarker = null;
 let routePolyline = null;
 let currentRouteGeoJSON = null;
+let globalLocationMarker = null;
 
 // DOM Elements
 const inputOrigin = document.getElementById('input-origin');
@@ -36,18 +37,29 @@ document.addEventListener('DOMContentLoaded', () => {
     loadRecentRoutes();
     setupInputs();
     
-    // Auto-center map on load if GPS available
+    // Auto-center map on load and start global tracking
     if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition((pos) => {
+        navigator.geolocation.watchPosition((pos) => {
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
-            map.setView([lat, lng], 15);
-            document.getElementById('btn-my-location-fab').classList.remove('hidden');
-        }, () => {}, { enableHighAccuracy: true });
+            const userLatLng = L.latLng(lat, lng);
+            
+            if (!globalLocationMarker) {
+                globalLocationMarker = L.circleMarker(userLatLng, {
+                    color: 'white', fillColor: '#3b82f6', fillOpacity: 1, radius: 8, weight: 3
+                }).addTo(map);
+                map.setView(userLatLng, 15);
+                document.getElementById('btn-my-location-fab').classList.remove('hidden');
+            } else {
+                globalLocationMarker.setLatLng(userLatLng);
+            }
+        }, () => {}, { enableHighAccuracy: true, maximumAge: 10000 });
     }
     
     document.getElementById('btn-my-location-fab').addEventListener('click', () => {
-        if ("geolocation" in navigator) {
+        if (globalLocationMarker) {
+            map.setView(globalLocationMarker.getLatLng(), 15);
+        } else if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition((pos) => {
                 map.setView([pos.coords.latitude, pos.coords.longitude], 15);
             });
@@ -56,6 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('btn-start-nav-from-info').addEventListener('click', () => {
         startNavMode();
+    });
+    
+    document.getElementById('btn-toggle-search').addEventListener('click', (e) => {
+        const panel = document.querySelector('.search-panel');
+        panel.classList.toggle('collapsed');
+        e.target.textContent = panel.classList.contains('collapsed') ? '▶️' : '🔽';
     });
 });
 
@@ -227,6 +245,13 @@ function selectLocation(loc, type) {
         if (destMarker) map.removeLayer(destMarker);
         destMarker = L.circleMarker([loc.lat, loc.lng], {color: '#ef4444', radius: 8, fillOpacity: 1}).addTo(map);
         map.setView([loc.lat, loc.lng], 15);
+    }
+    
+    // Clear old route line if exists to prevent visual mismatch
+    if (routePolyline) {
+        map.removeLayer(routePolyline);
+        routePolyline = null;
+        document.getElementById('route-info-box').classList.add('hidden');
     }
     
     // Save to history silently

@@ -104,6 +104,14 @@ body.light-mode .leaflet-control-attribution {
     -webkit-text-fill-color: transparent;
 }
 
+.search-panel.collapsed .input-group,
+.search-panel.collapsed .route-line,
+.search-panel.collapsed .suggestions-box,
+.search-panel.collapsed .recent-routes-box,
+.search-panel.collapsed .route-info-box {
+    display: none !important;
+}
+
 .input-group {
     display: flex;
     align-items: center;
