@@ -46,22 +46,23 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!globalLocationMarker) {
                 globalLocationMarker = L.circleMarker(userLatLng, {
-                    color: 'white', fillColor: '#3b82f6', fillOpacity: 1, radius: 8, weight: 3
+                    color: 'white', fillColor: '#3b82f6', fillOpacity: 1, radius: 10, weight: 3
                 }).addTo(map);
-                map.setView(userLatLng, 15);
+                map.setView(userLatLng, 17); // Zoom closer
                 document.getElementById('btn-my-location-fab').classList.remove('hidden');
             } else {
                 globalLocationMarker.setLatLng(userLatLng);
+                globalLocationMarker.bringToFront(); // Keep on top
             }
         }, () => {}, { enableHighAccuracy: true, maximumAge: 10000 });
     }
     
     document.getElementById('btn-my-location-fab').addEventListener('click', () => {
         if (globalLocationMarker) {
-            map.setView(globalLocationMarker.getLatLng(), 15);
+            map.setView(globalLocationMarker.getLatLng(), 17);
         } else if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition((pos) => {
-                map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+                map.setView([pos.coords.latitude, pos.coords.longitude], 17);
             });
         }
     });
@@ -114,7 +115,6 @@ function setupInputs() {
         const searchPanel = document.querySelector('.search-panel');
         if (searchPanel && !searchPanel.contains(e.target) && !mapPickerUI.contains(e.target)) {
             suggestionsBox.classList.add('hidden');
-            checkAndShowButtons();
             if (!currentOrigin || !currentDestination) {
                 recentRoutesBox.classList.remove('hidden');
             }
@@ -387,6 +387,13 @@ document.getElementById('btn-navigate').addEventListener('click', () => {
 async function calculateRoute(startNavigation = false) {
     if (!currentOrigin || !currentDestination) return;
     
+    // Reuse existing route if already calculated to save time
+    if (startNavigation && currentRouteGeoJSON) {
+        document.querySelector('.search-panel').classList.add('hidden');
+        startNavMode();
+        return;
+    }
+    
     loadingScreen.classList.remove('hidden');
     
     try {
@@ -525,7 +532,7 @@ function initRouteSegments() {
     }
 }
 
-const arrowSvg = `<svg width="32" height="32" viewBox="0 0 24 24" style="transform: rotate(-45deg)"><path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3b82f6" stroke="white" stroke-width="2"/></svg>`;
+const arrowSvg = `<svg width="32" height="32" viewBox="0 0 24 24"><path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3b82f6" stroke="white" stroke-width="2"/></svg>`;
 const createArrowIcon = (heading) => L.divIcon({
     html: `<div style="transform: rotate(${heading}deg); transition: transform 0.3s ease; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">${arrowSvg}</div>`,
     className: 'user-marker',
@@ -541,17 +548,18 @@ function handlePositionUpdate(position) {
     // Update marker
     if (!userMarker) {
         userMarker = L.marker(userLatLng, {
-            icon: createArrowIcon(userHeading)
+            icon: createArrowIcon(userHeading),
+            zIndexOffset: 1000
         }).addTo(map);
         // Initial zoom in
-        map.setView(userLatLng, 18);
+        map.setView(userLatLng, 19);
     } else {
         userMarker.setLatLng(userLatLng);
         userMarker.setIcon(createArrowIcon(userHeading));
     }
     
     // Auto-center map if in lock mode
-    map.setView(userLatLng, 18);
+    map.setView(userLatLng, 19);
     
     // Map Matching (Queue-based logic)
     if (routeSegments.length === 0) return;
