@@ -48,23 +48,13 @@ async def receive_result(request: Request):
             navigation_url = data.get("navigation_url")
 
             text = "Đã tìm thấy lộ trình phù hợp."
-            markup = None
             if distance_km is not None and estimated_time_min is not None:
                 text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
-            if route_id:
-                markup = InlineKeyboardMarkup(inline_keyboard=[
-                        [
-                            InlineKeyboardButton(
-                                text="🗺️ Xem bản đồ", 
-                                web_app=WebAppInfo(url=f"{settings.BASE_URL}/static/index.html?route_id={route_id}")
-                            )
-                        ]
-                    ])
 
-                try:
-                    await telegram_bot.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
-                except Exception as e:
-                    logger.error(f"Error sending msg: {e}")
+            try:
+                await telegram_bot.bot.send_message(chat_id=chat_id, text=text)
+            except Exception as e:
+                logger.error(f"Error sending msg: {e}")
             
     else:
         # Failure case

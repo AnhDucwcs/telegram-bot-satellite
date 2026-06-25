@@ -361,6 +361,13 @@ document.getElementById('btn-confirm-location').addEventListener('click', async 
 });
 
 function useMyLocation(type) {
+    if (globalLocationMarker) {
+        const lat = globalLocationMarker.getLatLng().lat;
+        const lng = globalLocationMarker.getLatLng().lng;
+        selectLocation({name: "Vị trí của tôi", lat, lng}, type);
+        return;
+    }
+    
     suggestionsBox.innerHTML = '<div class="empty-state">Đang lấy vị trí...</div>';
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition((position) => {
@@ -469,6 +476,15 @@ function handleRouteResult(result, startNavigation) {
     
     map.fitBounds(routePolyline.getBounds(), {padding: [30, 30]});
     
+    // Set ETA and distance globally for both screens
+    const etaText = result.estimated_time_min ? `${Math.ceil(result.estimated_time_min)} phút` : '-- phút';
+    const distText = result.distance_km ? `${result.distance_km.toFixed(1)} km` : '-- km';
+    
+    document.getElementById('info-eta').textContent = etaText;
+    document.getElementById('info-dist').textContent = distText;
+    document.getElementById('nav-eta').textContent = etaText;
+    document.getElementById('nav-total-dist').textContent = distText;
+    
     if (startNavigation) {
         document.querySelector('.search-panel').classList.add('hidden');
         startNavMode();
@@ -476,12 +492,6 @@ function handleRouteResult(result, startNavigation) {
         // Show info on screen 1
         actionButtons.classList.add('hidden');
         document.getElementById('route-info-box').classList.remove('hidden');
-        document.getElementById('info-eta').textContent = result.estimated_time_min ? `${Math.ceil(result.estimated_time_min)} phút` : '-- phút';
-        document.getElementById('info-dist').textContent = result.distance_km ? `${result.distance_km.toFixed(1)} km` : '-- km';
-        
-        // Set values for screen 2 if user clicks Dẫn đường later
-        document.getElementById('nav-eta').textContent = document.getElementById('info-eta').textContent;
-        document.getElementById('nav-total-dist').textContent = document.getElementById('info-dist').textContent;
     }
 }
 
@@ -651,4 +661,12 @@ document.getElementById('btn-stop-nav').addEventListener('click', () => {
     document.querySelector('.search-panel').classList.remove('hidden');
     
     if (routePolyline) map.removeLayer(routePolyline);
+});
+
+document.getElementById('btn-recenter').addEventListener('click', () => {
+    if (userMarker) {
+        map.setView(userMarker.getLatLng(), 19);
+    } else if (globalLocationMarker) {
+        map.setView(globalLocationMarker.getLatLng(), 19);
+    }
 });
