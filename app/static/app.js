@@ -32,9 +32,26 @@ const loadingScreen = document.getElementById('loading-screen');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     loadRecentRoutes();
     setupInputs();
 });
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+    } else if (!savedTheme && tg.colorScheme === 'light') {
+        // Fallback to telegram theme if no local preference
+        document.body.classList.add('light-mode');
+    }
+    
+    document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+        document.body.classList.toggle('light-mode');
+        const isLight = document.body.classList.contains('light-mode');
+        localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    });
+}
 
 // Setup input interactions
 function setupInputs() {
@@ -93,18 +110,19 @@ async function handleInputFocus(type) {
             `;
             if (data.locations.length > 0) {
                 data.locations.forEach(loc => {
-                const div = document.createElement('div');
-                div.className = 'suggestion-item';
-                div.innerHTML = `
-                    <div class="item-icon">🕒</div>
-                    <div class="item-details">
-                        <div class="item-title">${loc.name}</div>
-                        <div class="item-subtitle">${loc.address || ''}</div>
-                    </div>
-                `;
-                div.onclick = () => selectLocation(loc, type);
-                suggestionsBox.appendChild(div);
-            });
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.innerHTML = `
+                        <div class="item-icon">🕒</div>
+                        <div class="item-details">
+                            <div class="item-title">${loc.name}</div>
+                            <div class="item-subtitle">${loc.address || ''}</div>
+                        </div>
+                    `;
+                    div.onclick = () => selectLocation(loc, type);
+                    suggestionsBox.appendChild(div);
+                });
+            }
         } else {
             suggestionsBox.innerHTML = '<div class="empty-state">Nhập địa điểm để tìm kiếm</div>';
         }

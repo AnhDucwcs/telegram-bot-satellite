@@ -10,6 +10,14 @@
     --error: #ef4444;
 }
 
+body.light-mode {
+    --bg-dark: #f8fafc;
+    --bg-panel: rgba(255, 255, 255, 0.85);
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --border-color: rgba(0, 0, 0, 0.1);
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -41,6 +49,13 @@ body {
 .leaflet-control-zoom-out,
 .leaflet-control-attribution {
     filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+body.light-mode .leaflet-layer,
+body.light-mode .leaflet-control-zoom-in,
+body.light-mode .leaflet-control-zoom-out,
+body.light-mode .leaflet-control-attribution {
+    filter: none;
 }
 
 .ui-overlay {
