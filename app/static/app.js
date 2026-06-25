@@ -429,7 +429,9 @@ async function calculateRoute(startNavigation = false, isReroute = false) {
         return;
     }
     
-    loadingScreen.classList.remove('hidden');
+    if (!isReroute) {
+        loadingScreen.classList.remove('hidden');
+    }
     
     try {
         // 1. Create Job
