@@ -91,18 +91,24 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     response = await ai_client.client.post(
         f"{settings.AI_ENGINE_URL}/api/v1/routing/",
         json={
-            "origin_lat": origin["lat"],
-            "origin_lng": origin["lng"],
-            "destination_lat": destination["lat"],
-            "destination_lng": destination["lng"],
-            "user_id": str(user_id),
-            "callback_url": settings.INTERNAL_RESULT_CALLBACK_URL
+            "userId": str(user_id),
+            "conversationId": f"webapp_{user_id}",
+            "platform": "telegram",
+            "callbackUrl": settings.INTERNAL_RESULT_CALLBACK_URL,
+            "origin": {
+                "latitude": origin["lat"],
+                "longitude": origin["lng"]
+            },
+            "destination": {
+                "latitude": destination["lat"],
+                "longitude": destination["lng"]
+            }
         },
         headers={"x-internal-api-key": settings.AI_ENGINE_API_KEY}
     )
     
     if response.status_code == 200 or response.status_code == 202:
-        return {"status": "accepted", "job_id": f"job_{user_id}_{origin['lat']}_{destination['lat']}"} # Simplification for now
+        return {"status": "accepted", "job_id": f"job_{user_id}"} 
     
     raise HTTPException(status_code=500, detail="Failed to contact AI Engine")
 

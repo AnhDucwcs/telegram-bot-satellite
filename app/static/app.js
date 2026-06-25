@@ -80,9 +80,19 @@ async function handleInputFocus(type) {
         });
         const data = await res.json();
         
-        if (data.locations && data.locations.length > 0) {
-            suggestionsBox.innerHTML = '';
-            data.locations.forEach(loc => {
+        if (data.locations) {
+            suggestionsBox.innerHTML = `
+                <div class="suggestion-item" onclick="useMyLocation('${type}')">
+                    <div class="item-icon" style="color:var(--accent-primary)">📍</div>
+                    <div class="item-details"><div class="item-title">Vị trí của tôi</div></div>
+                </div>
+                <div class="suggestion-item" onclick="openMapPicker('${type}')">
+                    <div class="item-icon" style="color:var(--accent-primary)">🗺️</div>
+                    <div class="item-details"><div class="item-title">Chọn trên bản đồ</div></div>
+                </div>
+            `;
+            if (data.locations.length > 0) {
+                data.locations.forEach(loc => {
                 const div = document.createElement('div');
                 div.className = 'suggestion-item';
                 div.innerHTML = `
@@ -220,6 +230,63 @@ async function loadRecentRoutes() {
         }
     } catch (e) {
         console.error("Failed to load history");
+    }
+}
+
+// ==========================================
+// Map Picker & My Location Logic
+// ==========================================
+
+let mapPickerMode = null; // 'origin' or 'destination'
+const mapPickerUI = document.getElementById('map-picker-ui');
+
+function openMapPicker(type) {
+    suggestionsBox.classList.add('hidden');
+    document.querySelector('.search-panel').classList.add('hidden');
+    mapPickerUI.classList.remove('hidden');
+    mapPickerMode = type;
+}
+
+document.getElementById('btn-cancel-picker').addEventListener('click', () => {
+    mapPickerUI.classList.add('hidden');
+    document.querySelector('.search-panel').classList.remove('hidden');
+    mapPickerMode = null;
+});
+
+document.getElementById('btn-confirm-location').addEventListener('click', async () => {
+    mapPickerUI.classList.add('hidden');
+    document.querySelector('.search-panel').classList.remove('hidden');
+    
+    const center = map.getCenter();
+    const lat = center.lat;
+    const lng = center.lng;
+    
+    let name = "Vị trí đã chọn";
+    try {
+        const res = await fetch(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}`);
+        const data = await res.json();
+        if (data.features && data.features.length > 0) {
+            const p = data.features[0].properties;
+            name = p.name || p.street || "Vị trí đã chọn";
+        }
+    } catch(e) {}
+    
+    selectLocation({name, lat, lng}, mapPickerMode);
+    mapPickerMode = null;
+});
+
+function useMyLocation(type) {
+    suggestionsBox.innerHTML = '<div class="empty-state">Đang lấy vị trí...</div>';
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition((position) => {
+            const { latitude, longitude } = position.coords;
+            selectLocation({name: "Vị trí của tôi", lat: latitude, lng: longitude}, type);
+        }, () => {
+            alert("Không thể lấy vị trí. Vui lòng cấp quyền GPS.");
+            suggestionsBox.classList.add('hidden');
+        }, { enableHighAccuracy: true });
+    } else {
+        alert("Trình duyệt không hỗ trợ GPS.");
     }
 }
 

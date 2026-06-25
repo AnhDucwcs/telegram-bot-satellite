@@ -339,3 +339,29 @@ input:not(:placeholder-shown) + .clear-btn {
     from { top: -50px; opacity: 0; }
     to { top: 20px; opacity: 1; }
 }
+
+/* Map Picker UI */
+#map-picker-ui {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 50;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+.crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -100%);
+    font-size: 40px;
+    color: var(--error);
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(255,255,255,0.8);
+}
+.picker-footer {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    pointer-events: auto;
+}
