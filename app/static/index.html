@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SGN Route</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- UI Overlay: Screen 1 (Search & Plan) -->
+    <div id="screen-search" class="ui-overlay active">
+        <div class="search-panel glass-panel">
+            <h1 class="app-title">📍 SGN Route</h1>
+            
+            <div class="input-group">
+                <div class="input-icon">🟢</div>
+                <input type="text" id="input-origin" placeholder="Chọn điểm đi..." autocomplete="off">
+                <div class="clear-btn" onclick="clearInput('origin')">×</div>
+            </div>
+            
+            <div class="route-line"></div>
+            
+            <div class="input-group">
+                <div class="input-icon">🔴</div>
+                <input type="text" id="input-destination" placeholder="Chọn điểm đến..." autocomplete="off">
+                <div class="clear-btn" onclick="clearInput('destination')">×</div>
+            </div>
+
+            <!-- Autocomplete Suggestions Box -->
+            <div id="suggestions-box" class="suggestions-box hidden">
+                <!-- Suggestions will be populated here -->
+            </div>
+            
+            <!-- Recent Routes (Shown by default) -->
+            <div id="recent-routes-box" class="recent-routes-box">
+                <h3 class="section-title">Đã tìm gần đây</h3>
+                <div id="recent-routes-list" class="recent-routes-list">
+                    <div class="empty-state">Đang tải lịch sử...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons (Hidden until origin and destination are set) -->
+        <div id="action-buttons" class="action-buttons hidden glass-panel">
+            <button id="btn-show-route" class="btn btn-secondary">Đường đi</button>
+            <button id="btn-navigate" class="btn btn-primary">Dẫn đường</button>
+        </div>
+    </div>
+
+    <!-- UI Overlay: Screen 2 (Navigation) -->
+    <div id="screen-navigation" class="ui-overlay hidden">
+        <div class="nav-header glass-panel">
+            <div class="nav-instruction">
+                <div class="nav-icon">⬆️</div>
+                <div class="nav-text">
+                    <div class="nav-distance" id="nav-next-distance">Đi thẳng</div>
+                    <div class="nav-street" id="nav-next-street">Đang xác định vị trí...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="nav-footer glass-panel">
+            <div class="nav-stats">
+                <div class="stat-time" id="nav-eta">-- phút</div>
+                <div class="stat-dist" id="nav-total-dist">-- km</div>
+            </div>
+            <button id="btn-stop-nav" class="btn-icon">✖️ Thoát</button>
+            <button id="btn-recenter" class="btn-icon">📍 Ghim</button>
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen hidden">
+        <div class="spinner"></div>
+        <p>Đang tìm đường đi tốt nhất...</p>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden">Lệch tuyến! Đang tính lại đường...</div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
