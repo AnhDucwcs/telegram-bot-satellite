@@ -1,0 +1,341 @@
+:root {
+    --bg-dark: #0f172a;
+    --bg-panel: rgba(15, 23, 42, 0.75);
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent-primary: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-secondary: rgba(59, 130, 246, 0.2);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --error: #ef4444;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Fix leaflet dark mode tiles slightly */
+.leaflet-layer,
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out,
+.leaflet-control-attribution {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+.ui-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    pointer-events: none; /* Let clicks pass through */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: opacity 0.3s ease;
+}
+
+.ui-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.glass-panel {
+    background: var(--bg-panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 16px;
+    margin: 16px;
+    pointer-events: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Search Panel */
+.app-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-align: center;
+    background: -webkit-linear-gradient(45deg, #60a5fa, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.input-group {
+    display: flex;
+    align-items: center;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0 12px;
+    margin-bottom: 8px;
+    position: relative;
+    transition: border-color 0.2s;
+}
+
+.input-group:focus-within {
+    border-color: var(--accent-primary);
+}
+
+.input-icon {
+    font-size: 14px;
+    margin-right: 8px;
+}
+
+input[type="text"] {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    padding: 14px 0;
+    font-size: 15px;
+    outline: none;
+}
+
+input::placeholder {
+    color: var(--text-muted);
+}
+
+.clear-btn {
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+    display: none;
+}
+
+input:not(:placeholder-shown) + .clear-btn {
+    display: block;
+}
+
+/* Suggestions & History */
+.section-title {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 12px 0 8px 4px;
+}
+
+.suggestions-box, .recent-routes-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 8px;
+}
+
+.suggestion-item, .recent-route-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.suggestion-item:hover, .recent-route-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.item-icon {
+    font-size: 18px;
+    margin-right: 12px;
+    opacity: 0.8;
+}
+
+.item-details {
+    flex: 1;
+    overflow: hidden;
+}
+
+.item-title {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.item-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 16px 0;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.btn {
+    flex: 1;
+    padding: 16px;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+}
+
+.btn:active {
+    transform: scale(0.96);
+}
+
+.btn-primary {
+    background: var(--accent-primary);
+    color: white;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+/* Loading Screen */
+.loading-screen {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin { 
+    to { transform: rotate(360deg); } 
+}
+
+/* Screen 2: Navigation */
+.nav-header {
+    margin: 16px;
+}
+
+.nav-instruction {
+    display: flex;
+    align-items: center;
+}
+
+.nav-icon {
+    font-size: 32px;
+    margin-right: 16px;
+    color: var(--accent-primary);
+}
+
+.nav-distance {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.nav-street {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.nav-footer {
+    margin: 16px 16px 24px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.nav-stats {
+    flex: 1;
+}
+
+.stat-time {
+    font-size: 24px;
+    font-weight: 700;
+    color: #10b981; /* Emerald green for ETA */
+}
+
+.stat-dist {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.btn-icon {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid var(--border-color);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    margin-left: 8px;
+    cursor: pointer;
+}
+
+/* Toast */
+.toast {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--error);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 24px;
+    font-weight: 500;
+    z-index: 200;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from { top: -50px; opacity: 0; }
+    to { top: 20px; opacity: 1; }
+}
