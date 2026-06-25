@@ -592,13 +592,26 @@ function initRouteSegments() {
     routeSegments = [];
     currentSegmentIndex = 0;
     
-    // Extract coordinates. Note: GeoJSON stores as [lng, lat]
-    const coords = currentRouteGeoJSON.features[0].geometry.coordinates;
-    for (let i = 0; i < coords.length - 1; i++) {
-        routeSegments.push({
-            start: L.latLng(coords[i][1], coords[i][0]),
-            end: L.latLng(coords[i+1][1], coords[i+1][0])
-        });
+    try {
+        let coords = [];
+        if (currentRouteGeoJSON.type === 'FeatureCollection') {
+            coords = currentRouteGeoJSON.features[0].geometry.coordinates;
+        } else if (currentRouteGeoJSON.type === 'LineString') {
+            coords = currentRouteGeoJSON.coordinates;
+        } else if (currentRouteGeoJSON.type === 'Feature') {
+            coords = currentRouteGeoJSON.geometry.coordinates;
+        }
+        
+        if (coords && coords.length > 0) {
+            for (let i = 0; i < coords.length - 1; i++) {
+                routeSegments.push({
+                    start: L.latLng(coords[i][1], coords[i][0]),
+                    end: L.latLng(coords[i+1][1], coords[i+1][0])
+                });
+            }
+        }
+    } catch (e) {
+        console.error("Lỗi parse GeoJSON:", e);
     }
 }
 
