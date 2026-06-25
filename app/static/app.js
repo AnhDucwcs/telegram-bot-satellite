@@ -546,6 +546,11 @@ function startNavMode() {
     
     tg.HapticFeedback.notificationOccurred('success');
     
+    // Make sure blue dot is visible
+    if (globalLocationMarker) {
+        globalLocationMarker.setStyle({opacity: 1, fillOpacity: 1});
+    }
+    
     // Enable following mode
     isFollowing = true;
     
@@ -557,7 +562,7 @@ function startNavMode() {
     // Initialize Queue
     initRouteSegments();
     
-    // Start GPS Watch
+    // Start GPS Watch (real GPS updates will move the arrow)
     if ("geolocation" in navigator) {
         watchId = navigator.geolocation.watchPosition(handlePositionUpdate, handlePositionError, {
             enableHighAccuracy: true,
@@ -592,9 +597,10 @@ function handlePositionUpdate(position) {
     const { latitude, longitude } = position.coords;
     const userLatLng = L.latLng(latitude, longitude);
     
-    // Update global marker
+    // Update blue dot marker
     if (globalLocationMarker) {
         globalLocationMarker.setLatLng(userLatLng);
+        globalLocationMarker.bringToFront();
     }
     
     // Auto-center map if following
