@@ -509,8 +509,15 @@ function handleRouteResult(result, startNavigation) {
     routePolyline = L.geoJSON(currentRouteGeoJSON, {
         style: { color: '#3b82f6', weight: 6, opacity: 0.8 }
     }).addTo(map);
-    
-    map.fitBounds(routePolyline.getBounds(), {padding: [30, 30]});
+    if (!isNavigating) {
+        map.fitBounds(routePolyline.getBounds(), {padding: [30, 30]});
+    } else {
+        // If re-routing, auto-recenter (activate "Ghim") instead of showing the whole route
+        isFollowing = true;
+        if (globalLocationMarker) {
+            map.setView(globalLocationMarker.getLatLng(), 17);
+        }
+    }
     
     // Set ETA and distance globally for both screens
     const etaText = result.estimated_time_min ? `${Math.ceil(result.estimated_time_min)} phút` : '-- phút';
