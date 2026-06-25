@@ -3,24 +3,72 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.ready();
 
-// Map Initialization
-let map = L.map('map', {
-    zoomControl: false,
-    attributionControl: false
-}).setView([10.7769, 106.7009], 14); // Default to HCMC
-
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20
-}).addTo(map);
+// Map Initialization (OpenLayers)
+const map = new ol.Map({
+    target: 'map',
+    controls: ol.control.defaults.defaults({ zoom: false, attribution: false }),
+    layers: [
+        new ol.layer.Tile({
+            source: new ol.source.XYZ({
+                url: 'https://{a-c}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                maxZoom: 20
+            })
+        })
+    ],
+    view: new ol.View({
+        center: ol.proj.fromLonLat([106.7009, 10.7769]),
+        zoom: 14,
+        maxZoom: 20
+    })
+});
 
 // Variables
 let currentOrigin = null;
 let currentDestination = null;
-let originMarker = null;
-let destMarker = null;
-let routePolyline = null;
 let currentRouteGeoJSON = null;
-let globalLocationMarker = null;
+
+// Overlays (Markers)
+function createOverlay(color, id, isDot = false) {
+    const el = document.createElement('div');
+    if (isDot) {
+        el.innerHTML = `<div style="width:16px;height:16px;background:#3b82f6;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>`;
+        el.style.transform = 'translate(-50%, -50%)';
+    } else {
+        el.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="${color}" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C7 0 3 4 3 9C3 14.25 12 24 12 24C12 24 21 14.25 21 9C21 4 17 0 12 0ZM12 12C10.3 12 9 10.7 9 9C9 7.3 10.3 6 12 6C13.7 6 15 7.3 15 9C15 10.7 13.7 12 12 12Z"/></svg>`;
+        el.style.transform = 'translate(-50%, -100%)';
+    }
+    el.id = id;
+    const overlay = new ol.Overlay({
+        element: el,
+        positioning: isDot ? 'center-center' : 'bottom-center',
+        stopEvent: false
+    });
+    map.addOverlay(overlay);
+    return overlay;
+}
+
+const originMarker = createOverlay('#10b981', 'marker-origin');
+const destMarker = createOverlay('#ef4444', 'marker-dest');
+const globalLocationMarker = createOverlay('#3b82f6', 'marker-user', true);
+
+// Hide them initially
+originMarker.setPosition(undefined);
+destMarker.setPosition(undefined);
+globalLocationMarker.setPosition(undefined);
+
+// Route Layer
+const routeSource = new ol.source.Vector();
+const routeLayer = new ol.layer.Vector({
+    source: routeSource,
+    style: new ol.style.Style({
+        stroke: new ol.style.Stroke({
+            color: '#3b82f6',
+            width: 6
+        })
+    }),
+    zIndex: 50
+});
+map.addLayer(routeLayer);
 
 // DOM Elements
 const inputOrigin = document.getElementById('input-origin');
@@ -42,27 +90,25 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.geolocation.watchPosition((pos) => {
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
-            const userLatLng = L.latLng(lat, lng);
+            const coords = ol.proj.fromLonLat([lng, lat]);
             
-            if (!globalLocationMarker) {
-                globalLocationMarker = L.circleMarker(userLatLng, {
-                    color: 'white', fillColor: '#3b82f6', fillOpacity: 1, radius: 10, weight: 3
-                }).addTo(map);
-                map.setView(userLatLng, 17); // Zoom closer
+            if (!globalLocationMarker.getPosition()) {
+                globalLocationMarker.setPosition(coords);
+                map.getView().animate({center: coords, zoom: 17, duration: 500});
                 document.getElementById('btn-my-location-fab').classList.remove('hidden');
             } else {
-                globalLocationMarker.setLatLng(userLatLng);
-                globalLocationMarker.bringToFront(); // Keep on top
+                globalLocationMarker.setPosition(coords);
             }
         }, () => {}, { enableHighAccuracy: true, maximumAge: 10000 });
     }
     
     document.getElementById('btn-my-location-fab').addEventListener('click', () => {
-        if (globalLocationMarker) {
-            map.setView(globalLocationMarker.getLatLng(), 17);
+        if (globalLocationMarker.getPosition()) {
+            map.getView().animate({center: globalLocationMarker.getPosition(), zoom: 17, duration: 500});
         } else if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition((pos) => {
-                map.setView([pos.coords.latitude, pos.coords.longitude], 17);
+                const coords = ol.proj.fromLonLat([pos.coords.longitude, pos.coords.latitude]);
+                map.getView().animate({center: coords, zoom: 17, duration: 500});
             });
         }
     });
@@ -87,7 +133,6 @@ function initTheme() {
     if (savedTheme === 'light') {
         document.body.classList.add('light-mode');
     } else if (!savedTheme && tg.colorScheme === 'light') {
-        // Fallback to telegram theme if no local preference
         document.body.classList.add('light-mode');
     }
     
@@ -98,7 +143,6 @@ function initTheme() {
     });
 }
 
-// Setup input interactions
 function setupInputs() {
     inputOrigin.addEventListener('focus', () => handleInputFocus('origin'));
     inputDestination.addEventListener('focus', () => handleInputFocus('destination'));
@@ -114,9 +158,9 @@ function setupInputs() {
         debounceTimer = setTimeout(() => searchLocation(e.target.value, 'destination'), 500);
     });
     
-    // Hide suggestions when clicking outside
     document.addEventListener('click', (e) => {
         const searchPanel = document.querySelector('.search-panel');
+        const mapPickerUI = document.getElementById('map-picker-ui');
         if (searchPanel && !searchPanel.contains(e.target) && !mapPickerUI.contains(e.target)) {
             suggestionsBox.classList.add('hidden');
             if (!currentOrigin || !currentDestination) {
@@ -130,18 +174,15 @@ function clearInput(type) {
     if (type === 'origin') {
         inputOrigin.value = '';
         currentOrigin = null;
-        if (originMarker) map.removeLayer(originMarker);
+        originMarker.setPosition(undefined);
     } else {
         inputDestination.value = '';
         currentDestination = null;
-        if (destMarker) map.removeLayer(destMarker);
+        destMarker.setPosition(undefined);
     }
     
     document.getElementById('route-info-box').classList.add('hidden');
-    if (routePolyline) {
-        map.removeLayer(routePolyline);
-        routePolyline = null;
-    }
+    routeSource.clear();
     
     checkAndShowButtons();
     suggestionsBox.classList.add('hidden');
@@ -151,13 +192,14 @@ function clearInput(type) {
 function resetApp() {
     clearInput('origin');
     clearInput('destination');
-    if (globalLocationMarker) {
-        map.setView(globalLocationMarker.getLatLng(), 17);
+    if (globalLocationMarker.getPosition()) {
+        map.getView().animate({center: globalLocationMarker.getPosition(), zoom: 17, rotation: 0, duration: 500});
+    } else {
+        map.getView().animate({rotation: 0, duration: 500});
     }
 }
 
 async function handleInputFocus(type) {
-    // Hide recent routes
     recentRoutesBox.classList.add('hidden');
     suggestionsBox.classList.remove('hidden');
     suggestionsBox.innerHTML = '<div class="empty-state">Đang tải địa điểm gần đây...</div>';
@@ -202,7 +244,6 @@ async function handleInputFocus(type) {
     }
 }
 
-// Search using Photon Komoot API
 async function searchLocation(query, type) {
     if (!query || query.length < 2) {
         handleInputFocus(type);
@@ -245,28 +286,23 @@ function selectLocation(loc, type) {
     suggestionsBox.classList.add('hidden');
     recentRoutesBox.classList.remove('hidden');
     
+    const coords = ol.proj.fromLonLat([loc.lng, loc.lat]);
+    
     if (type === 'origin') {
         inputOrigin.value = loc.name;
         currentOrigin = loc;
-        if (originMarker) map.removeLayer(originMarker);
-        originMarker = L.circleMarker([loc.lat, loc.lng], {color: '#10b981', radius: 8, fillOpacity: 1}).addTo(map);
-        map.setView([loc.lat, loc.lng], 15);
+        originMarker.setPosition(coords);
+        map.getView().animate({center: coords, zoom: 15, duration: 500});
     } else {
         inputDestination.value = loc.name;
         currentDestination = loc;
-        if (destMarker) map.removeLayer(destMarker);
-        destMarker = L.circleMarker([loc.lat, loc.lng], {color: '#ef4444', radius: 8, fillOpacity: 1}).addTo(map);
-        map.setView([loc.lat, loc.lng], 15);
+        destMarker.setPosition(coords);
+        map.getView().animate({center: coords, zoom: 15, duration: 500});
     }
     
-    // Clear old route line if exists to prevent visual mismatch
-    if (routePolyline) {
-        map.removeLayer(routePolyline);
-        routePolyline = null;
-        document.getElementById('route-info-box').classList.add('hidden');
-    }
+    routeSource.clear();
+    document.getElementById('route-info-box').classList.add('hidden');
     
-    // Save to history silently
     fetch('/api/v1/webapp/history/location', {
         method: 'POST',
         headers: {
@@ -285,12 +321,12 @@ function checkAndShowButtons() {
         recentRoutesBox.classList.add('hidden');
         document.getElementById('route-info-box').classList.add('hidden');
         
-        // Fit bounds
-        const bounds = L.latLngBounds([
-            [currentOrigin.lat, currentOrigin.lng],
-            [currentDestination.lat, currentDestination.lng]
+        // Fit bounds for OpenLayers
+        const ext = ol.extent.boundingExtent([
+            ol.proj.fromLonLat([currentOrigin.lng, currentOrigin.lat]),
+            ol.proj.fromLonLat([currentDestination.lng, currentDestination.lat])
         ]);
-        map.fitBounds(bounds, {padding: [50, 50]});
+        map.getView().fit(ext, {padding: [50, 50, 50, 50], duration: 500});
     } else {
         actionButtons.classList.add('hidden');
     }
@@ -330,11 +366,8 @@ async function loadRecentRoutes() {
     }
 }
 
-// ==========================================
-// Map Picker & My Location Logic
-// ==========================================
-
-let mapPickerMode = null; // 'origin' or 'destination'
+// Map Picker
+let mapPickerMode = null;
 const mapPickerUI = document.getElementById('map-picker-ui');
 
 function openMapPicker(type) {
@@ -354,9 +387,10 @@ document.getElementById('btn-confirm-location').addEventListener('click', async 
     mapPickerUI.classList.add('hidden');
     document.querySelector('.search-panel').classList.remove('hidden');
     
-    const center = map.getCenter();
-    const lat = center.lat;
-    const lng = center.lng;
+    const center = map.getView().getCenter();
+    const lonlat = ol.proj.toLonLat(center);
+    const lng = lonlat[0];
+    const lat = lonlat[1];
     
     let name = "Vị trí đã chọn";
     try {
@@ -373,10 +407,9 @@ document.getElementById('btn-confirm-location').addEventListener('click', async 
 });
 
 function useMyLocation(type) {
-    if (globalLocationMarker) {
-        const lat = globalLocationMarker.getLatLng().lat;
-        const lng = globalLocationMarker.getLatLng().lng;
-        fetchAndSelectLocation(lat, lng, type);
+    if (globalLocationMarker.getPosition()) {
+        const lonlat = ol.proj.toLonLat(globalLocationMarker.getPosition());
+        fetchAndSelectLocation(lonlat[1], lonlat[0], type);
         return;
     }
     
@@ -410,19 +443,13 @@ async function fetchAndSelectLocation(lat, lng, type) {
     selectLocation({name, lat, lng, address}, type);
 }
 
-// ==========================================
-// Routing Logic (Polling)
-// ==========================================
-
+// Routing Logic
 document.getElementById('btn-show-route').addEventListener('click', () => calculateRoute(false));
-document.getElementById('btn-navigate').addEventListener('click', () => {
-    calculateRoute(true);
-});
+document.getElementById('btn-navigate').addEventListener('click', () => calculateRoute(true));
 
 async function calculateRoute(startNavigation = false, isReroute = false) {
     if (!currentOrigin || !currentDestination) return;
     
-    // Reuse existing route if already calculated to save time
     if (startNavigation && currentRouteGeoJSON && !isReroute) {
         document.querySelector('.search-panel').classList.add('hidden');
         startNavMode();
@@ -434,7 +461,6 @@ async function calculateRoute(startNavigation = false, isReroute = false) {
     }
     
     try {
-        // 1. Create Job
         const res = await fetch('/api/v1/webapp/route', {
             method: 'POST',
             headers: {
@@ -462,7 +488,7 @@ async function calculateRoute(startNavigation = false, isReroute = false) {
 }
 
 function pollJobStatus(jobId, startNavigation) {
-    const maxRetries = 30; // Max 60 seconds
+    const maxRetries = 30;
     let retries = 0;
     
     return new Promise((resolve, reject) => {
@@ -502,24 +528,25 @@ function pollJobStatus(jobId, startNavigation) {
 function handleRouteResult(result, startNavigation) {
     loadingScreen.classList.add('hidden');
     
-    if (routePolyline) map.removeLayer(routePolyline);
-    
+    routeSource.clear();
     currentRouteGeoJSON = result.geojson;
     
-    routePolyline = L.geoJSON(currentRouteGeoJSON, {
-        style: { color: '#3b82f6', weight: 6, opacity: 0.8 }
-    }).addTo(map);
+    const format = new ol.format.GeoJSON();
+    const features = format.readFeatures(currentRouteGeoJSON, {
+        dataProjection: 'EPSG:4326',
+        featureProjection: 'EPSG:3857'
+    });
+    routeSource.addFeatures(features);
+    
     if (!isNavigating) {
-        map.fitBounds(routePolyline.getBounds(), {padding: [30, 30]});
+        map.getView().fit(routeSource.getExtent(), {padding: [30, 30, 30, 30], duration: 500});
     } else {
-        // If re-routing, auto-recenter (activate "Ghim") instead of showing the whole route
         isFollowing = true;
-        if (globalLocationMarker) {
-            map.setView(globalLocationMarker.getLatLng(), 17);
+        if (globalLocationMarker.getPosition()) {
+            map.getView().animate({center: globalLocationMarker.getPosition(), zoom: 17, duration: 500});
         }
     }
     
-    // Set ETA and distance globally for both screens
     const etaText = result.estimated_time_min ? `${Math.ceil(result.estimated_time_min)} phút` : '-- phút';
     const distText = result.distance_km ? `${result.distance_km.toFixed(1)} km` : '-- km';
     
@@ -533,27 +560,22 @@ function handleRouteResult(result, startNavigation) {
         if (!isNavigating) {
             startNavMode();
         } else {
-            // Already navigating (Re-routing case)
             initRouteSegments();
         }
     } else {
-        // Show info on screen 1
         actionButtons.classList.add('hidden');
         document.getElementById('route-info-box').classList.remove('hidden');
     }
 }
 
-// ==========================================
-// Navigation Logic (Screen 2)
-// ==========================================
-
+// Navigation Logic
 let watchId = null;
 let routeSegments = [];
 let currentSegmentIndex = 0;
-let isFollowing = true; // Auto-track user position
-let isRerouting = false; // Prevent re-routing spam
-let isNavigating = false; // Track if we are in navigation mode
-let lastRerouteTime = 0; // Debounce re-routing
+let isFollowing = true;
+let isRerouting = false;
+let isNavigating = false;
+let lastRerouteTime = 0;
 
 function startNavMode() {
     if (isNavigating) return;
@@ -566,33 +588,24 @@ function startNavMode() {
     
     tg.HapticFeedback.notificationOccurred('success');
     
-    // Make sure blue dot is visible
-    if (globalLocationMarker) {
-        globalLocationMarker.setStyle({opacity: 1, fillOpacity: 1});
-    }
-    
-    // Enable following mode
     isFollowing = true;
     
-    // Zoom immediately to current location
-    if (globalLocationMarker) {
-        map.setView(globalLocationMarker.getLatLng(), 17);
+    if (globalLocationMarker.getPosition()) {
+        map.getView().animate({center: globalLocationMarker.getPosition(), zoom: 17, duration: 500});
     }
     
-    // Initialize Queue
     initRouteSegments();
     
-    // Start GPS Watch (real GPS updates will move the arrow)
     if ("geolocation" in navigator) {
-        watchId = navigator.geolocation.watchPosition(handlePositionUpdate, handlePositionError, {
+        watchId = navigator.geolocation.watchPosition(handlePositionUpdate, (err) => console.warn(err), {
             enableHighAccuracy: true,
             maximumAge: 0,
             timeout: 5000
         });
     }
     
-    // When user manually drags the map, disable following
-    map.on('dragstart', () => {
+    // When user drags, disable following (Track-up rotation)
+    map.on('pointerdrag', () => {
         isFollowing = false;
     });
 }
@@ -615,9 +628,10 @@ function initRouteSegments() {
         
         if (coords && coords.length > 0) {
             for (let i = 0; i < coords.length - 1; i++) {
+                // Keep coords in [lng, lat] for turf
                 routeSegments.push({
-                    start: L.latLng(coords[i][1], coords[i][0]),
-                    end: L.latLng(coords[i+1][1], coords[i+1][0])
+                    start: [coords[i][0], coords[i][1]],
+                    end: [coords[i+1][0], coords[i+1][1]]
                 });
             }
         }
@@ -628,105 +642,85 @@ function initRouteSegments() {
 
 function handlePositionUpdate(position) {
     const { latitude, longitude } = position.coords;
-    const userLatLng = L.latLng(latitude, longitude);
+    const coords = ol.proj.fromLonLat([longitude, latitude]);
     
-    // Update blue dot marker
     if (globalLocationMarker) {
-        globalLocationMarker.setLatLng(userLatLng);
-        globalLocationMarker.bringToFront();
+        globalLocationMarker.setPosition(coords);
     }
     
-    // Auto-center map if following
-    if (isFollowing) {
-        map.setView(userLatLng, map.getZoom());
-    }
-    
-    // Map Matching (Find closest segment)
     if (routeSegments.length === 0 || isRerouting) return;
     
     let minDistance = Infinity;
     let closestIndex = currentSegmentIndex;
     
-    // Check current segment and next 10 segments to see if we moved forward
     const maxCheck = Math.min(routeSegments.length, currentSegmentIndex + 10);
     for (let i = currentSegmentIndex; i < maxCheck; i++) {
         const seg = routeSegments[i];
-        const dist = getDistanceToSegment(userLatLng, seg.start, seg.end);
-        if (dist < minDistance) {
-            minDistance = dist;
+        // turf pointToLineDistance returns distance in kilometers
+        const distKm = turf.pointToLineDistance(
+            turf.point([longitude, latitude]),
+            turf.lineString([seg.start, seg.end]),
+            {units: 'meters'}
+        );
+        if (distKm < minDistance) {
+            minDistance = distKm;
             closestIndex = i;
         }
     }
     
-    // Advance progress
     if (closestIndex > currentSegmentIndex) {
         currentSegmentIndex = closestIndex;
     }
     
-    // Debug info
     const debugEl = document.getElementById('sim-debug');
     if (debugEl) {
         debugEl.textContent = `Dist: ${Math.round(minDistance)}m | Seg: ${currentSegmentIndex}/${routeSegments.length}`;
     }
     
-    // Off-route detection: re-route if we are > 50m away from the closest valid segment
+    // Rotation (Track-up mode) using upcoming nodes to determine direction
+    if (isFollowing) {
+        // Calculate bearing using turf
+        const p1 = routeSegments[closestIndex].start;
+        // Use the end of the next segment for smoother rotation around corners if available
+        let lookAheadIndex = closestIndex;
+        if (closestIndex + 1 < routeSegments.length) {
+            lookAheadIndex = closestIndex + 1;
+        }
+        const p2 = routeSegments[lookAheadIndex].end;
+        
+        const bearing = turf.bearing(turf.point(p1), turf.point(p2)); // -180 to 180
+        
+        // OpenLayers rotation: radians clockwise. Pointing bearing UP means rotating view by -bearing
+        const bearingRad = bearing * (Math.PI / 180);
+        
+        map.getView().animate({
+            center: coords,
+            rotation: -bearingRad,
+            duration: 250
+        });
+    }
+    
     const now = Date.now();
-    if (minDistance > 50 && (now - lastRerouteTime > 15000)) { // 15 seconds cooldown
+    if (minDistance > 50 && (now - lastRerouteTime > 15000)) {
         isRerouting = true;
         lastRerouteTime = now;
         showToast("Lệch tuyến! Đang tính lại...");
         tg.HapticFeedback.notificationOccurred('warning');
         
-        // Use current GPS as new origin
         currentOrigin = {
             name: "Vị trí hiện tại",
             lat: latitude,
             lng: longitude
         };
         
-        // Clear cached route so calculateRoute actually calls the API
         currentRouteGeoJSON = null;
         
-        // Trigger route recalculation (isReroute = true)
         calculateRoute(true, true).then(() => {
             isRerouting = false;
         }).catch(() => {
             isRerouting = false;
         });
     }
-}
-
-function getDistanceToSegment(p, p1, p2) {
-    const x = p.lng, y = p.lat;
-    const x1 = p1.lng, y1 = p1.lat;
-    const x2 = p2.lng, y2 = p2.lat;
-    
-    const A = x - x1;
-    const B = y - y1;
-    const C = x2 - x1;
-    const D = y2 - y1;
-    
-    const dot = A * C + B * D;
-    const len_sq = C * C + D * D;
-    
-    let param = -1;
-    if (len_sq !== 0) param = dot / len_sq;
-    
-    let xx, yy;
-    if (param < 0) {
-        xx = x1; yy = y1;
-    } else if (param > 1) {
-        xx = x2; yy = y2;
-    } else {
-        xx = x1 + param * C;
-        yy = y1 + param * D;
-    }
-    
-    return map.distance(L.latLng(y, x), L.latLng(yy, xx));
-}
-
-function handlePositionError(err) {
-    console.warn('ERROR(' + err.code + '): ' + err.message);
 }
 
 function showToast(msg) {
@@ -747,11 +741,7 @@ function stopNavMode() {
         watchId = null;
     }
     
-    // Stop simulator if running
     stopSimulator();
-    
-    // Remove drag listener
-    map.off('dragstart');
     
     document.getElementById('screen-navigation').classList.remove('active');
     document.getElementById('screen-navigation').classList.add('hidden');
@@ -765,20 +755,29 @@ document.getElementById('btn-stop-nav').addEventListener('click', stopNavMode);
 
 document.getElementById('btn-recenter').addEventListener('click', () => {
     isFollowing = true;
-    if (globalLocationMarker) {
-        map.setView(globalLocationMarker.getLatLng(), 17);
+    if (globalLocationMarker.getPosition()) {
+        let bearingRad = 0;
+        if (routeSegments.length > 0 && currentSegmentIndex < routeSegments.length) {
+            const p1 = routeSegments[currentSegmentIndex].start;
+            let lookAheadIndex = currentSegmentIndex;
+            if (currentSegmentIndex + 1 < routeSegments.length) {
+                lookAheadIndex = currentSegmentIndex + 1;
+            }
+            const p2 = routeSegments[lookAheadIndex].end;
+            const bearing = turf.bearing(turf.point(p1), turf.point(p2));
+            bearingRad = bearing * (Math.PI / 180);
+        }
+        
+        map.getView().animate({
+            center: globalLocationMarker.getPosition(),
+            zoom: 17,
+            rotation: -bearingRad,
+            duration: 500
+        });
     }
 });
 
-
-// ==========================================
-// GPS Simulator (Debug/Test Mode)
-// ==========================================
-// Activate: press 'G' key on keyboard
-// WASD: move position | ArrowLeft/ArrowRight: rotate heading
-// The simulator feeds fake GPS coords into handlePositionUpdate()
-// so all real logic (re-routing, ETA, map rotation) works identically.
-
+// Simulator
 let simActive = false;
 let simLat = 0;
 let simLng = 0;
@@ -791,10 +790,10 @@ function startSimulator() {
     if (simActive) return;
     simActive = true;
     
-    // Use current known position as starting point
-    if (globalLocationMarker) {
-        simLat = globalLocationMarker.getLatLng().lat;
-        simLng = globalLocationMarker.getLatLng().lng;
+    if (globalLocationMarker.getPosition()) {
+        const lonlat = ol.proj.toLonLat(globalLocationMarker.getPosition());
+        simLat = lonlat[1];
+        simLng = lonlat[0];
     } else if (currentOrigin) {
         simLat = currentOrigin.lat;
         simLng = currentOrigin.lng;
@@ -803,7 +802,6 @@ function startSimulator() {
         simLng = 106.7009;
     }
     
-    // Show indicator with Touch UI
     simIndicator = document.createElement('div');
     simIndicator.id = 'sim-indicator';
     simIndicator.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:12px;border-radius:12px;z-index:9999;text-align:center;backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events:auto;';
@@ -842,19 +840,16 @@ function startSimulator() {
     
     document.getElementById('sim-btn-close').addEventListener('click', stopSimulator);
     
-    // Stop real GPS watch to avoid conflict
     if (watchId) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
     }
     
-    // Keyboard listeners
     document.addEventListener('keydown', simKeyDown);
     document.addEventListener('keyup', simKeyUp);
     
-    // Tick every 100ms
-    const MOVE_SPEED = 0.00005; // ~5.5 meters per tick
-    const TURN_SPEED = 5; // degrees per tick
+    const MOVE_SPEED = 0.00005;
+    const TURN_SPEED = 5;
     
     simInterval = setInterval(() => {
         if (simKeys['w'] || simKeys['W']) {
@@ -880,7 +875,6 @@ function startSimulator() {
             simHeading = (simHeading + TURN_SPEED) % 360;
         }
         
-        // Feed fake GPS data into the REAL handler
         handlePositionUpdate({
             coords: {
                 latitude: simLat,
@@ -889,8 +883,6 @@ function startSimulator() {
             }
         });
     }, 100);
-    
-    console.log('🎮 GPS Simulator started');
 }
 
 function stopSimulator() {
@@ -910,13 +902,10 @@ function stopSimulator() {
         simIndicator.remove();
         simIndicator = null;
     }
-    
-    console.log('🎮 GPS Simulator stopped');
 }
 
 function simKeyDown(e) {
     simKeys[e.key] = true;
-    // Prevent page scroll on arrow keys
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
         e.preventDefault();
     }
@@ -927,21 +916,14 @@ function simKeyUp(e) {
 }
 
 document.getElementById('btn-sim-mode').addEventListener('click', () => {
-    if (simActive) {
-        stopSimulator();
-    } else {
-        startSimulator();
-    }
+    if (simActive) stopSimulator();
+    else startSimulator();
 });
 
-// Toggle simulator with 'G' key
 document.addEventListener('keydown', (e) => {
     if (e.key === 'g' || e.key === 'G') {
         if (e.repeat) return;
-        if (simActive) {
-            stopSimulator();
-        } else {
-            startSimulator();
-        }
+        if (simActive) stopSimulator();
+        else startSimulator();
     }
 });

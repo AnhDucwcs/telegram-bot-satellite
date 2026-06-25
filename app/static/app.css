@@ -43,24 +43,22 @@ body {
     z-index: 1;
 }
 
-/* Arrow marker: remove Leaflet default white background box */
+/* OpenLayers Overlays and Marker Fixes */
 .user-marker {
     background: none !important;
     border: none !important;
 }
 
-/* Fix leaflet dark mode tiles slightly */
-.leaflet-layer,
-.leaflet-control-zoom-in,
-.leaflet-control-zoom-out,
-.leaflet-control-attribution {
+/* Fix OpenLayers dark mode tiles slightly */
+.ol-layer canvas,
+.ol-control button,
+.ol-attribution {
     filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
 
-body.light-mode .leaflet-layer,
-body.light-mode .leaflet-control-zoom-in,
-body.light-mode .leaflet-control-zoom-out,
-body.light-mode .leaflet-control-attribution {
+body.light-mode .ol-layer canvas,
+body.light-mode .ol-control button,
+body.light-mode .ol-attribution {
     filter: none;
 }
 
