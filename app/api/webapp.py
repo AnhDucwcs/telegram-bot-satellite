@@ -104,7 +104,7 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
                 "longitude": destination["lng"]
             }
         },
-        headers={"x-internal-api-key": settings.AI_ENGINE_API_KEY}
+        headers={"x-internal-api-key": settings.INTERNAL_API_KEY}
     )
     
     if response.status_code == 200 or response.status_code == 202:

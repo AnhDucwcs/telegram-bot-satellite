@@ -74,7 +74,7 @@ body.light-mode .leaflet-control-attribution {
 
 .ui-overlay.active {
     opacity: 1;
-    pointer-events: auto;
+    pointer-events: none; /* Removed auto to allow map dragging */
 }
 
 .hidden {
@@ -379,4 +379,9 @@ input:not(:placeholder-shown) + .clear-btn {
     gap: 12px;
     margin-bottom: 24px;
     pointer-events: auto;
+}
+
+body.light-mode .btn-secondary {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-main);
 }

@@ -68,6 +68,18 @@ function setupInputs() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => searchLocation(e.target.value, 'destination'), 500);
     });
+    
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        const searchPanel = document.querySelector('.search-panel');
+        if (searchPanel && !searchPanel.contains(e.target) && !mapPickerUI.contains(e.target)) {
+            suggestionsBox.classList.add('hidden');
+            checkAndShowButtons();
+            if (!currentOrigin || !currentDestination) {
+                recentRoutesBox.classList.remove('hidden');
+            }
+        }
+    });
 }
 
 function clearInput(type) {
