@@ -35,6 +35,28 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     loadRecentRoutes();
     setupInputs();
+    
+    // Auto-center map on load if GPS available
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            map.setView([lat, lng], 15);
+            document.getElementById('btn-my-location-fab').classList.remove('hidden');
+        }, () => {}, { enableHighAccuracy: true });
+    }
+    
+    document.getElementById('btn-my-location-fab').addEventListener('click', () => {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+            });
+        }
+    });
+    
+    document.getElementById('btn-start-nav-from-info').addEventListener('click', () => {
+        startNavMode();
+    });
 });
 
 function initTheme() {
@@ -92,6 +114,13 @@ function clearInput(type) {
         currentDestination = null;
         if (destMarker) map.removeLayer(destMarker);
     }
+    
+    document.getElementById('route-info-box').classList.add('hidden');
+    if (routePolyline) {
+        map.removeLayer(routePolyline);
+        routePolyline = null;
+    }
+    
     checkAndShowButtons();
     suggestionsBox.classList.add('hidden');
     recentRoutesBox.classList.remove('hidden');
@@ -217,6 +246,7 @@ function checkAndShowButtons() {
     if (currentOrigin && currentDestination) {
         actionButtons.classList.remove('hidden');
         recentRoutesBox.classList.add('hidden');
+        document.getElementById('route-info-box').classList.add('hidden');
         
         // Fit bounds
         const bounds = L.latLngBounds([
@@ -407,11 +437,19 @@ function handleRouteResult(result, startNavigation) {
     
     map.fitBounds(routePolyline.getBounds(), {padding: [30, 30]});
     
-    // Hide UI
-    document.querySelector('.search-panel').classList.add('hidden');
-    
     if (startNavigation) {
+        document.querySelector('.search-panel').classList.add('hidden');
         startNavMode();
+    } else {
+        // Show info on screen 1
+        actionButtons.classList.add('hidden');
+        document.getElementById('route-info-box').classList.remove('hidden');
+        document.getElementById('info-eta').textContent = result.estimated_time_min ? `${Math.ceil(result.estimated_time_min)} phút` : '-- phút';
+        document.getElementById('info-dist').textContent = result.distance_km ? `${result.distance_km.toFixed(1)} km` : '-- km';
+        
+        // Set values for screen 2 if user clicks Dẫn đường later
+        document.getElementById('nav-eta').textContent = document.getElementById('info-eta').textContent;
+        document.getElementById('nav-total-dist').textContent = document.getElementById('info-dist').textContent;
     }
 }
 
@@ -462,21 +500,29 @@ function initRouteSegments() {
     }
 }
 
+const arrowSvg = `<svg width="32" height="32" viewBox="0 0 24 24" style="transform: rotate(-45deg)"><path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3b82f6" stroke="white" stroke-width="2"/></svg>`;
+const createArrowIcon = (heading) => L.divIcon({
+    html: `<div style="transform: rotate(${heading}deg); transition: transform 0.3s ease; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">${arrowSvg}</div>`,
+    className: 'user-marker',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+});
+
 function handlePositionUpdate(position) {
     const { latitude, longitude, heading } = position.coords;
     const userLatLng = L.latLng(latitude, longitude);
+    const userHeading = heading || 0;
     
     // Update marker
     if (!userMarker) {
-        userMarker = L.circleMarker(userLatLng, {
-            color: '#3b82f6',
-            fillColor: '#60a5fa',
-            fillOpacity: 1,
-            radius: 8,
-            weight: 3
+        userMarker = L.marker(userLatLng, {
+            icon: createArrowIcon(userHeading)
         }).addTo(map);
+        // Initial zoom in
+        map.setView(userLatLng, 18);
     } else {
         userMarker.setLatLng(userLatLng);
+        userMarker.setIcon(createArrowIcon(userHeading));
     }
     
     // Auto-center map if in lock mode
