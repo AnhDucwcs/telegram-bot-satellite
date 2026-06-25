@@ -542,7 +542,7 @@ function startNavMode() {
     
     // Zoom immediately to current location
     if (globalLocationMarker) {
-        map.setView(globalLocationMarker.getLatLng(), 19);
+        map.setView(globalLocationMarker.getLatLng(), 17);
     }
     
     // Initialize Queue
@@ -596,14 +596,14 @@ function handlePositionUpdate(position) {
             zIndexOffset: 1000
         }).addTo(map);
         // Initial zoom in
-        map.setView(userLatLng, 19);
+        map.setView(userLatLng, 17);
     } else {
         userMarker.setLatLng(userLatLng);
         userMarker.setIcon(createArrowIcon(userHeading));
     }
     
     // Auto-center map if in lock mode
-    map.setView(userLatLng, 19);
+    map.setView(userLatLng, 17);
     
     // Map Matching (Queue-based logic)
     if (routeSegments.length === 0) return;
@@ -699,8 +699,8 @@ document.getElementById('btn-stop-nav').addEventListener('click', () => {
 
 document.getElementById('btn-recenter').addEventListener('click', () => {
     if (userMarker) {
-        map.setView(userMarker.getLatLng(), 19);
+        map.setView(userMarker.getLatLng(), 17);
     } else if (globalLocationMarker) {
-        map.setView(globalLocationMarker.getLatLng(), 19);
+        map.setView(globalLocationMarker.getLatLng(), 17);
     }
 });
