@@ -82,7 +82,9 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     # 1. Save to history
     origin = payload.get("origin")
     destination = payload.get("destination")
-    if origin and destination:
+    is_reroute = payload.get("is_reroute", False)
+    
+    if origin and destination and not is_reroute:
         await HistoryService.add_recent_route(user_id, origin, destination)
         
     if not hasattr(request.app.state, 'pending_routes'):
@@ -90,7 +92,8 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
         
     request.app.state.pending_routes[f"job_{user_id}"] = {
         "origin_name": origin.get("name", "Vị trí bắt đầu"),
-        "destination_name": destination.get("name", "Vị trí kết thúc")
+        "destination_name": destination.get("name", "Vị trí kết thúc"),
+        "is_reroute": is_reroute
     }
         
     # 2. Forward to AI engine

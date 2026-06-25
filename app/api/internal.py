@@ -48,16 +48,20 @@ async def receive_result(request: Request):
             navigation_url = data.get("navigation_url")
 
             pending = getattr(request.app.state, 'pending_routes', {}).get(f"job_{user_id}", {})
-            origin_name = pending.get("origin_name", "Vị trí bắt đầu")
-            destination_name = pending.get("destination_name", "Vị trí kết thúc")
+            
+            # Skip sending message if this is just a background re-route
+            if not pending.get("is_reroute", False):
+                origin_name = pending.get("origin_name", "Vị trí bắt đầu")
+                destination_name = pending.get("destination_name", "Vị trí kết thúc")
 
-            text = f"Đã tìm thấy lộ trình: {origin_name} ➔ {destination_name}"
-            if distance_km is not None and estimated_time_min is not None:
-                text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
+                text = f"Đã tìm thấy lộ trình: {origin_name} ➔ {destination_name}"
+                if distance_km is not None and estimated_time_min is not None:
+                    text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
 
-            try:
-                await telegram_bot.bot.send_message(chat_id=chat_id, text=text)
-            except Exception as e:
+                try:
+                    await telegram_bot.bot.send_message(chat_id=chat_id, text=text)
+                except Exception as e:
+                    logger.error(f"Failed to send result to telegram: {e}")
                 logger.error(f"Error sending msg: {e}")
             
     else:

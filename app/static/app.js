@@ -419,11 +419,11 @@ document.getElementById('btn-navigate').addEventListener('click', () => {
     calculateRoute(true);
 });
 
-async function calculateRoute(startNavigation = false) {
+async function calculateRoute(startNavigation = false, isReroute = false) {
     if (!currentOrigin || !currentDestination) return;
     
     // Reuse existing route if already calculated to save time
-    if (startNavigation && currentRouteGeoJSON) {
+    if (startNavigation && currentRouteGeoJSON && !isReroute) {
         document.querySelector('.search-panel').classList.add('hidden');
         startNavMode();
         return;
@@ -441,7 +441,8 @@ async function calculateRoute(startNavigation = false) {
             },
             body: JSON.stringify({
                 origin: currentOrigin,
-                destination: currentDestination
+                destination: currentDestination,
+                is_reroute: isReroute
             })
         });
         const data = await res.json();
@@ -543,6 +544,7 @@ let currentSegmentIndex = 0;
 let isFollowing = true; // Auto-track user position
 let isRerouting = false; // Prevent re-routing spam
 let isNavigating = false; // Track if we are in navigation mode
+let lastRerouteTime = 0; // Debounce re-routing
 
 function startNavMode() {
     if (isNavigating) return;
@@ -659,8 +661,10 @@ function handlePositionUpdate(position) {
     }
     
     // Off-route detection: re-route if we are > 50m away from the closest valid segment
-    if (minDistance > 50) {
+    const now = Date.now();
+    if (minDistance > 50 && (now - lastRerouteTime > 15000)) { // 15 seconds cooldown
         isRerouting = true;
+        lastRerouteTime = now;
         showToast("Lệch tuyến! Đang tính lại...");
         tg.HapticFeedback.notificationOccurred('warning');
         
@@ -674,8 +678,8 @@ function handlePositionUpdate(position) {
         // Clear cached route so calculateRoute actually calls the API
         currentRouteGeoJSON = null;
         
-        // Trigger route recalculation, then resume navigation
-        calculateRoute(true).then(() => {
+        // Trigger route recalculation (isReroute = true)
+        calculateRoute(true, true).then(() => {
             isRerouting = false;
         }).catch(() => {
             isRerouting = false;
