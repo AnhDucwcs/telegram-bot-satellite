@@ -639,6 +639,12 @@ function handlePositionUpdate(position) {
         currentSegmentIndex = closestIndex;
     }
     
+    // Debug info
+    const debugEl = document.getElementById('sim-debug');
+    if (debugEl) {
+        debugEl.textContent = `Dist: ${Math.round(minDistance)}m | Seg: ${currentSegmentIndex}/${routeSegments.length}`;
+    }
+    
     // Off-route detection: re-route if we are > 50m away from the closest valid segment
     if (minDistance > 50) {
         isRerouting = true;
@@ -778,6 +784,7 @@ function startSimulator() {
     
     simIndicator.innerHTML = `
         <div style="font-size:12px; font-weight:bold; margin-bottom:10px; color:#10b981;">🎮 SIMULATOR MODE</div>
+        <div id="sim-debug" style="font-size:10px; color:yellow; margin-bottom:5px;">Dist: 0m | Seg: 0/0</div>
         <div style="display:flex; gap:10px; margin-bottom:10px;">
             <button id="sim-btn-w" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">⬆️</button>
         </div>
