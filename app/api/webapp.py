@@ -119,6 +119,10 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     )
     
     if response.status_code == 200 or response.status_code == 202:
+        # Clear any old job result to prevent stale data
+        if hasattr(request.app.state, 'job_results') and f"job_{user_id}" in request.app.state.job_results:
+            del request.app.state.job_results[f"job_{user_id}"]
+            
         return {"status": "accepted", "job_id": f"job_{user_id}"} 
     
     raise HTTPException(status_code=500, detail="Failed to contact AI Engine")
