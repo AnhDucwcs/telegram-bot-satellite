@@ -555,23 +555,30 @@ function startNavMode() {
     // Enable following mode
     isFollowing = true;
     
-    // Zoom immediately to current location
+    // Create arrow marker IMMEDIATELY from last known position
     if (globalLocationMarker) {
-        map.setView(globalLocationMarker.getLatLng(), 17);
+        const pos = globalLocationMarker.getLatLng();
+        if (!userMarker) {
+            userMarker = L.marker(pos, {
+                icon: createArrowIcon(0),
+                zIndexOffset: 1000
+            }).addTo(map);
+        } else {
+            userMarker.setLatLng(pos);
+        }
+        map.setView(pos, 17);
     }
     
     // Initialize Queue
     initRouteSegments();
     
-    // Start GPS Watch
+    // Start GPS Watch (real GPS updates will move the arrow)
     if ("geolocation" in navigator) {
         watchId = navigator.geolocation.watchPosition(handlePositionUpdate, handlePositionError, {
             enableHighAccuracy: true,
             maximumAge: 0,
             timeout: 5000
         });
-    } else {
-        alert("Trình duyệt không hỗ trợ GPS.");
     }
     
     // When user manually drags the map, disable following
@@ -719,6 +726,9 @@ function stopNavMode() {
         userMarker = null;
     }
     
+    // Stop simulator if running
+    stopSimulator();
+    
     // Reset map rotation
     const mapPane = document.querySelector('.leaflet-map-pane');
     if (mapPane) {
@@ -749,5 +759,144 @@ document.getElementById('btn-recenter').addEventListener('click', () => {
         map.setView(userMarker.getLatLng(), 17);
     } else if (globalLocationMarker) {
         map.setView(globalLocationMarker.getLatLng(), 17);
+    }
+});
+
+
+// ==========================================
+// GPS Simulator (Debug/Test Mode)
+// ==========================================
+// Activate: press 'G' key on keyboard
+// WASD: move position | ArrowLeft/ArrowRight: rotate heading
+// The simulator feeds fake GPS coords into handlePositionUpdate()
+// so all real logic (re-routing, ETA, map rotation) works identically.
+
+let simActive = false;
+let simLat = 0;
+let simLng = 0;
+let simHeading = 0;
+let simInterval = null;
+let simKeys = {};
+let simIndicator = null;
+
+function startSimulator() {
+    if (simActive) return;
+    simActive = true;
+    
+    // Use current known position as starting point
+    if (userMarker) {
+        simLat = userMarker.getLatLng().lat;
+        simLng = userMarker.getLatLng().lng;
+    } else if (globalLocationMarker) {
+        simLat = globalLocationMarker.getLatLng().lat;
+        simLng = globalLocationMarker.getLatLng().lng;
+    } else if (currentOrigin) {
+        simLat = currentOrigin.lat;
+        simLng = currentOrigin.lng;
+    } else {
+        simLat = 10.7769;
+        simLng = 106.7009;
+    }
+    
+    // Show indicator
+    simIndicator = document.createElement('div');
+    simIndicator.id = 'sim-indicator';
+    simIndicator.innerHTML = '🎮 SIM MODE<br><small>WASD: di chuyển | ←→: quay đầu | G: tắt</small>';
+    simIndicator.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(239,68,68,0.9);color:white;padding:8px 16px;border-radius:12px;z-index:9999;font-size:12px;font-weight:600;text-align:center;pointer-events:none;backdrop-filter:blur(8px);';
+    document.body.appendChild(simIndicator);
+    
+    // Stop real GPS watch to avoid conflict
+    if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+    
+    // Keyboard listeners
+    document.addEventListener('keydown', simKeyDown);
+    document.addEventListener('keyup', simKeyUp);
+    
+    // Tick every 100ms
+    const MOVE_SPEED = 0.00005; // ~5.5 meters per tick
+    const TURN_SPEED = 5; // degrees per tick
+    
+    simInterval = setInterval(() => {
+        if (simKeys['w'] || simKeys['W']) {
+            simLat += MOVE_SPEED * Math.cos(simHeading * Math.PI / 180);
+            simLng += MOVE_SPEED * Math.sin(simHeading * Math.PI / 180);
+        }
+        if (simKeys['s'] || simKeys['S']) {
+            simLat -= MOVE_SPEED * Math.cos(simHeading * Math.PI / 180);
+            simLng -= MOVE_SPEED * Math.sin(simHeading * Math.PI / 180);
+        }
+        if (simKeys['a'] || simKeys['A']) {
+            simLat += MOVE_SPEED * Math.cos((simHeading - 90) * Math.PI / 180);
+            simLng += MOVE_SPEED * Math.sin((simHeading - 90) * Math.PI / 180);
+        }
+        if (simKeys['d'] || simKeys['D']) {
+            simLat += MOVE_SPEED * Math.cos((simHeading + 90) * Math.PI / 180);
+            simLng += MOVE_SPEED * Math.sin((simHeading + 90) * Math.PI / 180);
+        }
+        if (simKeys['ArrowLeft']) {
+            simHeading = (simHeading - TURN_SPEED + 360) % 360;
+        }
+        if (simKeys['ArrowRight']) {
+            simHeading = (simHeading + TURN_SPEED) % 360;
+        }
+        
+        // Feed fake GPS data into the REAL handler
+        handlePositionUpdate({
+            coords: {
+                latitude: simLat,
+                longitude: simLng,
+                heading: simHeading
+            }
+        });
+    }, 100);
+    
+    console.log('🎮 GPS Simulator started');
+}
+
+function stopSimulator() {
+    if (!simActive) return;
+    simActive = false;
+    
+    if (simInterval) {
+        clearInterval(simInterval);
+        simInterval = null;
+    }
+    
+    document.removeEventListener('keydown', simKeyDown);
+    document.removeEventListener('keyup', simKeyUp);
+    simKeys = {};
+    
+    if (simIndicator) {
+        simIndicator.remove();
+        simIndicator = null;
+    }
+    
+    console.log('🎮 GPS Simulator stopped');
+}
+
+function simKeyDown(e) {
+    simKeys[e.key] = true;
+    // Prevent page scroll on arrow keys
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        e.preventDefault();
+    }
+}
+
+function simKeyUp(e) {
+    simKeys[e.key] = false;
+}
+
+// Toggle simulator with 'G' key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'g' || e.key === 'G') {
+        if (e.repeat) return;
+        if (simActive) {
+            stopSimulator();
+        } else {
+            startSimulator();
+        }
     }
 });
