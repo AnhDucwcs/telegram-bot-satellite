@@ -4,7 +4,7 @@ from app.core.db import get_db
 
 # Max items per user
 MAX_RECENT_LOCATIONS = 10
-MAX_RECENT_ROUTES = 3
+MAX_RECENT_ROUTES = 5
 
 class HistoryService:
     @staticmethod

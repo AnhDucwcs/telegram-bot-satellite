@@ -376,7 +376,7 @@ function useMyLocation(type) {
     if (globalLocationMarker) {
         const lat = globalLocationMarker.getLatLng().lat;
         const lng = globalLocationMarker.getLatLng().lng;
-        selectLocation({name: "Vị trí của tôi", lat, lng}, type);
+        fetchAndSelectLocation(lat, lng, type);
         return;
     }
     
@@ -384,7 +384,7 @@ function useMyLocation(type) {
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition((position) => {
             const { latitude, longitude } = position.coords;
-            selectLocation({name: "Vị trí của tôi", lat: latitude, lng: longitude}, type);
+            fetchAndSelectLocation(latitude, longitude, type);
         }, () => {
             alert("Không thể lấy vị trí. Vui lòng cấp quyền GPS.");
             suggestionsBox.classList.add('hidden');
@@ -392,6 +392,22 @@ function useMyLocation(type) {
     } else {
         alert("Trình duyệt không hỗ trợ GPS.");
     }
+}
+
+async function fetchAndSelectLocation(lat, lng, type) {
+    suggestionsBox.innerHTML = '<div class="empty-state">Đang lấy địa chỉ...</div>';
+    let name = "Vị trí của tôi";
+    let address = "";
+    try {
+        const res = await fetch(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}`);
+        const data = await res.json();
+        if (data.features && data.features.length > 0) {
+            const p = data.features[0].properties;
+            name = p.name || p.street || "Vị trí của tôi";
+            address = [p.district, p.city].filter(Boolean).join(', ');
+        }
+    } catch(e) {}
+    selectLocation({name, lat, lng, address}, type);
 }
 
 // ==========================================
@@ -523,6 +539,11 @@ function startNavMode() {
     document.querySelector('.search-panel').classList.add('hidden');
     
     tg.HapticFeedback.notificationOccurred('success');
+    
+    // Zoom immediately to current location
+    if (globalLocationMarker) {
+        map.setView(globalLocationMarker.getLatLng(), 19);
+    }
     
     // Initialize Queue
     initRouteSegments();

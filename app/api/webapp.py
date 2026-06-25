@@ -85,6 +85,14 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     if origin and destination:
         await HistoryService.add_recent_route(user_id, origin, destination)
         
+    if not hasattr(request.app.state, 'pending_routes'):
+        request.app.state.pending_routes = {}
+        
+    request.app.state.pending_routes[f"job_{user_id}"] = {
+        "origin_name": origin.get("name", "Vị trí bắt đầu"),
+        "destination_name": destination.get("name", "Vị trí kết thúc")
+    }
+        
     # 2. Forward to AI engine
     ai_client = request.app.state.ai_client
     # Gửi qua AI Engine kèm userId để nó gửi callback về

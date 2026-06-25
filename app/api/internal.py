@@ -47,7 +47,11 @@ async def receive_result(request: Request):
             estimated_time_min = data.get("estimated_time_min")
             navigation_url = data.get("navigation_url")
 
-            text = "Đã tìm thấy lộ trình phù hợp."
+            pending = getattr(request.app.state, 'pending_routes', {}).get(f"job_{user_id}", {})
+            origin_name = pending.get("origin_name", "Vị trí bắt đầu")
+            destination_name = pending.get("destination_name", "Vị trí kết thúc")
+
+            text = f"Đã tìm thấy lộ trình: {origin_name} ➔ {destination_name}"
             if distance_km is not None and estimated_time_min is not None:
                 text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
 
