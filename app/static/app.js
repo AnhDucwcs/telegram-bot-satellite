@@ -447,7 +447,7 @@ async function calculateRoute(startNavigation = false) {
         const data = await res.json();
         
         if (data.status === 'accepted' && data.job_id) {
-            pollJobStatus(data.job_id, startNavigation);
+            return pollJobStatus(data.job_id, startNavigation);
         } else {
             throw new Error("Failed to start job");
         }
@@ -458,37 +458,42 @@ async function calculateRoute(startNavigation = false) {
     }
 }
 
-async function pollJobStatus(jobId, startNavigation) {
+function pollJobStatus(jobId, startNavigation) {
     const maxRetries = 30; // Max 60 seconds
     let retries = 0;
     
-    const interval = setInterval(async () => {
-        retries++;
-        if (retries > maxRetries) {
-            clearInterval(interval);
-            loadingScreen.classList.add('hidden');
-            alert("Quá thời gian chờ tính đường.");
-            return;
-        }
-        
-        try {
-            const res = await fetch(`/api/v1/webapp/job/${jobId}`, {
-                headers: { 'x-telegram-init-data': tg.initData }
-            });
-            const data = await res.json();
-            
-            if (data.status === 'completed') {
-                clearInterval(interval);
-                handleRouteResult(data.result, startNavigation);
-            } else if (data.status === 'error') {
+    return new Promise((resolve, reject) => {
+        const interval = setInterval(async () => {
+            retries++;
+            if (retries > maxRetries) {
                 clearInterval(interval);
                 loadingScreen.classList.add('hidden');
-                alert(data.message || "Không tìm thấy đường.");
+                alert("Quá thời gian chờ tính đường.");
+                reject(new Error("Timeout"));
+                return;
             }
-        } catch (e) {
-            console.error("Polling error", e);
-        }
-    }, 2000);
+            
+            try {
+                const res = await fetch(`/api/v1/webapp/job/${jobId}`, {
+                    headers: { 'x-telegram-init-data': tg.initData }
+                });
+                const data = await res.json();
+                
+                if (data.status === 'completed') {
+                    clearInterval(interval);
+                    handleRouteResult(data.result, startNavigation);
+                    resolve();
+                } else if (data.status === 'error') {
+                    clearInterval(interval);
+                    loadingScreen.classList.add('hidden');
+                    alert(data.message || "Không tìm thấy đường.");
+                    reject(new Error(data.message));
+                }
+            } catch (e) {
+                console.error("Polling error", e);
+            }
+        }, 2000);
+    });
 }
 
 function handleRouteResult(result, startNavigation) {
@@ -531,6 +536,8 @@ let watchId = null;
 let routeSegments = [];
 let currentSegmentIndex = 0;
 let userMarker = null;
+let isFollowing = true; // Auto-track user position
+let isRerouting = false; // Prevent re-routing spam
 
 function startNavMode() {
     document.getElementById('screen-search').classList.remove('active');
@@ -539,6 +546,14 @@ function startNavMode() {
     document.querySelector('.search-panel').classList.add('hidden');
     
     tg.HapticFeedback.notificationOccurred('success');
+    
+    // Hide the blue dot, the arrow marker will take over
+    if (globalLocationMarker) {
+        globalLocationMarker.setStyle({opacity: 0, fillOpacity: 0});
+    }
+    
+    // Enable following mode
+    isFollowing = true;
     
     // Zoom immediately to current location
     if (globalLocationMarker) {
@@ -558,6 +573,11 @@ function startNavMode() {
     } else {
         alert("Trình duyệt không hỗ trợ GPS.");
     }
+    
+    // When user manually drags the map, disable following
+    map.on('dragstart', () => {
+        isFollowing = false;
+    });
 }
 
 function initRouteSegments() {
@@ -576,12 +596,12 @@ function initRouteSegments() {
     }
 }
 
-const arrowSvg = `<svg width="32" height="32" viewBox="0 0 24 24"><path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3b82f6" stroke="white" stroke-width="2"/></svg>`;
+const arrowSvg = `<svg width="36" height="36" viewBox="0 0 24 24"><path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3b82f6" stroke="white" stroke-width="2"/></svg>`;
 const createArrowIcon = (heading) => L.divIcon({
-    html: `<div style="transform: rotate(${heading}deg); transition: transform 0.3s ease; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">${arrowSvg}</div>`,
+    html: `<div style="transform: rotate(${heading}deg); transition: transform 0.3s ease; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));">${arrowSvg}</div>`,
     className: 'user-marker',
-    iconSize: [32, 32],
-    iconAnchor: [16, 16]
+    iconSize: [36, 36],
+    iconAnchor: [18, 18]
 });
 
 function handlePositionUpdate(position) {
@@ -589,49 +609,56 @@ function handlePositionUpdate(position) {
     const userLatLng = L.latLng(latitude, longitude);
     const userHeading = heading || 0;
     
-    // Update marker
+    // Update arrow marker
     if (!userMarker) {
         userMarker = L.marker(userLatLng, {
             icon: createArrowIcon(userHeading),
             zIndexOffset: 1000
         }).addTo(map);
-        // Initial zoom in
-        map.setView(userLatLng, 17);
     } else {
         userMarker.setLatLng(userLatLng);
         userMarker.setIcon(createArrowIcon(userHeading));
     }
     
-    // Auto-center map if in lock mode
-    map.setView(userLatLng, 17);
+    // Auto-center + rotate map if following
+    if (isFollowing) {
+        map.setView(userLatLng, map.getZoom());
+        
+        // Rotate map to match heading direction
+        const mapPane = document.querySelector('.leaflet-map-pane');
+        if (mapPane && userHeading) {
+            mapPane.style.transition = 'transform 0.5s ease';
+            mapPane.style.transformOrigin = 'center center';
+            // Leaflet uses its own transform, we layer rotation on top
+            const currentTransform = mapPane.style.transform || '';
+            if (!currentTransform.includes('rotate')) {
+                mapPane.style.transform = currentTransform + ` rotate(${-userHeading}deg)`;
+            } else {
+                mapPane.style.transform = currentTransform.replace(/rotate\([^)]*\)/, `rotate(${-userHeading}deg)`);
+            }
+        }
+    }
     
     // Map Matching (Queue-based logic)
-    if (routeSegments.length === 0) return;
+    if (routeSegments.length === 0 || isRerouting) return;
     
     let activeSegment = routeSegments[currentSegmentIndex];
     let distanceToSegment = getDistanceToSegment(userLatLng, activeSegment.start, activeSegment.end);
     
     // Check if user passed the end of the current segment
     const distToEnd = map.distance(userLatLng, activeSegment.end);
-    const segmentLength = map.distance(activeSegment.start, activeSegment.end);
     
-    // Very simple check: If we are closer to the next segment's start (which is activeSegment.end)
-    // than the length of the segment, and we've moved past it
-    // A proper projection check is better, but here's a simplified version:
     if (distToEnd < 20 && currentSegmentIndex < routeSegments.length - 1) {
-        currentSegmentIndex++; // Pop active segment
+        currentSegmentIndex++;
         activeSegment = routeSegments[currentSegmentIndex];
         distanceToSegment = getDistanceToSegment(userLatLng, activeSegment.start, activeSegment.end);
     }
     
-    // Off-route detection
-    if (distanceToSegment > 40) {
-        // Trigger Re-routing
+    // Off-route detection: re-route
+    if (distanceToSegment > 50) {
+        isRerouting = true;
         showToast("Lệch tuyến! Đang tính lại...");
         tg.HapticFeedback.notificationOccurred('warning');
-        
-        // Stop current watch
-        navigator.geolocation.clearWatch(watchId);
         
         // Use current GPS as new origin
         currentOrigin = {
@@ -640,17 +667,20 @@ function handlePositionUpdate(position) {
             lng: longitude
         };
         
-        // Trigger route recalculation silently
-        calculateRoute(true);
+        // Clear cached route so calculateRoute actually calls the API
+        currentRouteGeoJSON = null;
+        
+        // Trigger route recalculation, then resume navigation
+        calculateRoute(true).then(() => {
+            isRerouting = false;
+        }).catch(() => {
+            isRerouting = false;
+        });
     }
 }
 
 function getDistanceToSegment(p, p1, p2) {
-    // Math logic to find shortest distance from point p to line segment p1-p2
-    // Simplified using Leaflet's built-in map.distance for rough approximation
-    // A true cross-track distance algorithm should be here
     const d1 = map.distance(p, p1);
-    const d2 = map.distance(p, p2);
     const L2 = map.distance(p1, p2);
     
     if (L2 === 0) return d1;
@@ -679,7 +709,7 @@ function showToast(msg) {
     }, 3000);
 }
 
-document.getElementById('btn-stop-nav').addEventListener('click', () => {
+function stopNavMode() {
     if (watchId) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
@@ -689,15 +719,32 @@ document.getElementById('btn-stop-nav').addEventListener('click', () => {
         userMarker = null;
     }
     
+    // Reset map rotation
+    const mapPane = document.querySelector('.leaflet-map-pane');
+    if (mapPane) {
+        mapPane.style.transform = mapPane.style.transform.replace(/rotate\([^)]*\)/, '');
+    }
+    
+    // Restore the blue dot
+    if (globalLocationMarker) {
+        globalLocationMarker.setStyle({opacity: 1, fillOpacity: 1});
+    }
+    
+    // Remove drag listener
+    map.off('dragstart');
+    
     document.getElementById('screen-navigation').classList.remove('active');
     document.getElementById('screen-navigation').classList.add('hidden');
     document.getElementById('screen-search').classList.add('active');
     document.querySelector('.search-panel').classList.remove('hidden');
     
     resetApp();
-});
+}
+
+document.getElementById('btn-stop-nav').addEventListener('click', stopNavMode);
 
 document.getElementById('btn-recenter').addEventListener('click', () => {
+    isFollowing = true;
     if (userMarker) {
         map.setView(userMarker.getLatLng(), 17);
     } else if (globalLocationMarker) {
