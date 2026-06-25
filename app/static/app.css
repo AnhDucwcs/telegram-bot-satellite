@@ -43,6 +43,12 @@ body {
     z-index: 1;
 }
 
+/* Arrow marker: remove Leaflet default white background box */
+.user-marker {
+    background: none !important;
+    border: none !important;
+}
+
 /* Fix leaflet dark mode tiles slightly */
 .leaflet-layer,
 .leaflet-control-zoom-in,
