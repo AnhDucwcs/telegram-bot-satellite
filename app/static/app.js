@@ -535,7 +535,6 @@ function handleRouteResult(result, startNavigation) {
 let watchId = null;
 let routeSegments = [];
 let currentSegmentIndex = 0;
-let userMarker = null;
 let isFollowing = true; // Auto-track user position
 let isRerouting = false; // Prevent re-routing spam
 
@@ -547,32 +546,18 @@ function startNavMode() {
     
     tg.HapticFeedback.notificationOccurred('success');
     
-    // Hide the blue dot, the arrow marker will take over
-    if (globalLocationMarker) {
-        globalLocationMarker.setStyle({opacity: 0, fillOpacity: 0});
-    }
-    
     // Enable following mode
     isFollowing = true;
     
-    // Create arrow marker IMMEDIATELY from last known position
+    // Zoom immediately to current location
     if (globalLocationMarker) {
-        const pos = globalLocationMarker.getLatLng();
-        if (!userMarker) {
-            userMarker = L.marker(pos, {
-                icon: createArrowIcon(0),
-                zIndexOffset: 1000
-            }).addTo(map);
-        } else {
-            userMarker.setLatLng(pos);
-        }
-        map.setView(pos, 17);
+        map.setView(globalLocationMarker.getLatLng(), 17);
     }
     
     // Initialize Queue
     initRouteSegments();
     
-    // Start GPS Watch (real GPS updates will move the arrow)
+    // Start GPS Watch
     if ("geolocation" in navigator) {
         watchId = navigator.geolocation.watchPosition(handlePositionUpdate, handlePositionError, {
             enableHighAccuracy: true,
@@ -603,47 +588,18 @@ function initRouteSegments() {
     }
 }
 
-const arrowSvg = `<svg width="36" height="36" viewBox="0 0 24 24"><path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3b82f6" stroke="white" stroke-width="2"/></svg>`;
-const createArrowIcon = (heading) => L.divIcon({
-    html: `<div style="transform: rotate(${heading}deg); transition: transform 0.3s ease; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));">${arrowSvg}</div>`,
-    className: 'user-marker',
-    iconSize: [36, 36],
-    iconAnchor: [18, 18]
-});
-
 function handlePositionUpdate(position) {
-    const { latitude, longitude, heading } = position.coords;
+    const { latitude, longitude } = position.coords;
     const userLatLng = L.latLng(latitude, longitude);
-    const userHeading = heading || 0;
     
-    // Update arrow marker
-    if (!userMarker) {
-        userMarker = L.marker(userLatLng, {
-            icon: createArrowIcon(userHeading),
-            zIndexOffset: 1000
-        }).addTo(map);
-    } else {
-        userMarker.setLatLng(userLatLng);
-        userMarker.setIcon(createArrowIcon(userHeading));
+    // Update global marker
+    if (globalLocationMarker) {
+        globalLocationMarker.setLatLng(userLatLng);
     }
     
-    // Auto-center + rotate map if following
+    // Auto-center map if following
     if (isFollowing) {
         map.setView(userLatLng, map.getZoom());
-        
-        // Rotate map to match heading direction
-        const mapPane = document.querySelector('.leaflet-map-pane');
-        if (mapPane && userHeading) {
-            mapPane.style.transition = 'transform 0.5s ease';
-            mapPane.style.transformOrigin = 'center center';
-            // Leaflet uses its own transform, we layer rotation on top
-            const currentTransform = mapPane.style.transform || '';
-            if (!currentTransform.includes('rotate')) {
-                mapPane.style.transform = currentTransform + ` rotate(${-userHeading}deg)`;
-            } else {
-                mapPane.style.transform = currentTransform.replace(/rotate\([^)]*\)/, `rotate(${-userHeading}deg)`);
-            }
-        }
     }
     
     // Map Matching (Queue-based logic)
@@ -721,24 +677,9 @@ function stopNavMode() {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
     }
-    if (userMarker) {
-        map.removeLayer(userMarker);
-        userMarker = null;
-    }
     
     // Stop simulator if running
     stopSimulator();
-    
-    // Reset map rotation
-    const mapPane = document.querySelector('.leaflet-map-pane');
-    if (mapPane) {
-        mapPane.style.transform = mapPane.style.transform.replace(/rotate\([^)]*\)/, '');
-    }
-    
-    // Restore the blue dot
-    if (globalLocationMarker) {
-        globalLocationMarker.setStyle({opacity: 1, fillOpacity: 1});
-    }
     
     // Remove drag listener
     map.off('dragstart');
@@ -755,9 +696,7 @@ document.getElementById('btn-stop-nav').addEventListener('click', stopNavMode);
 
 document.getElementById('btn-recenter').addEventListener('click', () => {
     isFollowing = true;
-    if (userMarker) {
-        map.setView(userMarker.getLatLng(), 17);
-    } else if (globalLocationMarker) {
+    if (globalLocationMarker) {
         map.setView(globalLocationMarker.getLatLng(), 17);
     }
 });
@@ -784,10 +723,7 @@ function startSimulator() {
     simActive = true;
     
     // Use current known position as starting point
-    if (userMarker) {
-        simLat = userMarker.getLatLng().lat;
-        simLng = userMarker.getLatLng().lng;
-    } else if (globalLocationMarker) {
+    if (globalLocationMarker) {
         simLat = globalLocationMarker.getLatLng().lat;
         simLng = globalLocationMarker.getLatLng().lng;
     } else if (currentOrigin) {
