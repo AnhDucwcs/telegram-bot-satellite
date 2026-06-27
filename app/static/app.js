@@ -1185,6 +1185,16 @@ function restoreState() {
             isFollowing = true;
             initRouteSegments();
             
+            // Set initial zoom and center to the start of the route so it doesn't look like route planning mode
+            if (routeSegments.length > 0) {
+                const startProj = ol.proj.fromLonLat(routeSegments[0].start);
+                map.getView().animate({
+                    center: startProj,
+                    zoom: 17,
+                    duration: 500
+                });
+            }
+            
             if ("geolocation" in navigator) {
                 watchId = navigator.geolocation.watchPosition(handlePositionUpdate, (err) => console.warn(err), {
                     enableHighAccuracy: true,
