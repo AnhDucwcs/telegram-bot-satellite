@@ -635,11 +635,17 @@ function initRouteSegments() {
         }
         
         if (coords && coords.length > 0) {
+            let edgeTimes = [];
+            if (currentRouteGeoJSON.properties && currentRouteGeoJSON.properties.edge_times) {
+                edgeTimes = currentRouteGeoJSON.properties.edge_times;
+            }
+            
             for (let i = 0; i < coords.length - 1; i++) {
                 // Keep coords in [lng, lat] for turf
                 routeSegments.push({
                     start: [coords[i][0], coords[i][1]],
-                    end: [coords[i+1][0], coords[i+1][1]]
+                    end: [coords[i+1][0], coords[i+1][1]],
+                    timeMin: edgeTimes[i] || 0 // Store edge time (minutes) or default to 0
                 });
             }
         }
@@ -706,6 +712,34 @@ function handlePositionUpdate(position) {
             rotation: -bearingRad,
             duration: 250
         });
+    }
+    
+    // Dynamic ETA calculation
+    if (routeSegments.length > 0) {
+        let remainingTimeMin = 0;
+        
+        // Add time for all upcoming full segments
+        for (let i = closestIndex + 1; i < routeSegments.length; i++) {
+            remainingTimeMin += routeSegments[i].timeMin;
+        }
+        
+        // For the current segment, calculate remaining fraction
+        const currentSeg = routeSegments[closestIndex];
+        const segLenMeters = turf.distance(turf.point(currentSeg.start), turf.point(currentSeg.end), {units: 'meters'});
+        // Approximate distance passed along this segment (using distance from start to projection)
+        // For simplicity, we just use the remaining length. 
+        // Turf's pointToLineDistance gives orthogonal distance. To find progress, we can use distance from user to end node
+        const distToEndMeters = turf.distance(turf.point([longitude, latitude]), turf.point(currentSeg.end), {units: 'meters'});
+        
+        if (segLenMeters > 0) {
+            let fraction = distToEndMeters / segLenMeters;
+            fraction = Math.min(Math.max(fraction, 0), 1); // Clamp between 0 and 1
+            remainingTimeMin += currentSeg.timeMin * fraction;
+        }
+        
+        // Update UI
+        const etaText = `${Math.ceil(remainingTimeMin)} phút`;
+        document.getElementById('nav-eta').textContent = etaText;
     }
     
     const now = Date.now();
