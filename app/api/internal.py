@@ -61,7 +61,6 @@ async def receive_result(request: Request):
                     await telegram_bot.bot.send_message(chat_id=chat_id, text=text)
                 except Exception as e:
                     logger.error(f"Failed to send result to telegram: {e}")
-                logger.error(f"Error sending msg: {e}")
             
     else:
         # Failure case

@@ -32,15 +32,14 @@ function createOverlay(color, id, isDot = false) {
     const el = document.createElement('div');
     if (isDot) {
         el.innerHTML = `<div style="width:16px;height:16px;background:#3b82f6;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.5);"></div>`;
-        el.style.transform = 'translate(-50%, -50%)';
     } else {
         el.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="${color}" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C7 0 3 4 3 9C3 14.25 12 24 12 24C12 24 21 14.25 21 9C21 4 17 0 12 0ZM12 12C10.3 12 9 10.7 9 9C9 7.3 10.3 6 12 6C13.7 6 15 7.3 15 9C15 10.7 13.7 12 12 12Z"/></svg>`;
-        el.style.transform = 'translate(-50%, -100%)';
     }
     el.id = id;
     const overlay = new ol.Overlay({
         element: el,
         positioning: isDot ? 'center-center' : 'bottom-center',
+        offset: isDot ? [0, 0] : [0, 0],
         stopEvent: false
     });
     map.addOverlay(overlay);
@@ -953,24 +952,32 @@ document.getElementById('btn-rescue-gmaps').addEventListener('click', () => {
     const destLat = currentDestination.lat;
     const destLng = currentDestination.lng;
     
-    // Build Google Maps deep link with dir_action=navigate to jump straight into navigation
-    // Use two-wheeler mode on mobile (Vietnam), driving on desktop
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const travelMode = isMobile ? 'two-wheeler' : 'driving';
-    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=${travelMode}&dir_action=navigate`;
-    
     // Save state before leaving (OS may kill the Mini App)
     saveState();
     
     showToast('Đang mở Google Maps...');
     tg.HapticFeedback.notificationOccurred('warning');
     
-    // Use Telegram WebApp API to open external link (forces native browser/app)
-    try {
-        tg.openLink(gmapsUrl);
-    } catch (e) {
-        // Fallback if Telegram API not available
-        window.open(gmapsUrl, '_blank');
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    
+    if (isAndroid) {
+        // Android: use intent scheme for native two-wheeler navigation
+        const intentUrl = `intent://navigation?destination=${destLat},${destLng}&mode=tw#Intent;scheme=google.navigation;package=com.google.android.apps.maps;end`;
+        try {
+            tg.openLink(intentUrl);
+        } catch (e) {
+            // Fallback to standard Maps URL
+            const fallback = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving&dir_action=navigate`;
+            tg.openLink(fallback);
+        }
+    } else {
+        // iOS / Desktop: use standard Google Maps URL
+        const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving&dir_action=navigate`;
+        try {
+            tg.openLink(gmapsUrl);
+        } catch (e) {
+            window.open(gmapsUrl, '_blank');
+        }
     }
 });
 
