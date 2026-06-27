@@ -85,6 +85,9 @@ document.addEventListener('DOMContentLoaded', () => {
     loadRecentRoutes();
     setupInputs();
     
+    // Try restoring previous session state
+    const restored = restoreState();
+    
     // Auto-center map on load and start global tracking
     if ("geolocation" in navigator) {
         navigator.geolocation.watchPosition((pos) => {
@@ -566,6 +569,9 @@ function handleRouteResult(result, startNavigation) {
         actionButtons.classList.add('hidden');
         document.getElementById('route-info-box').classList.remove('hidden');
     }
+    
+    // Persist state after route is loaded
+    saveState();
 }
 
 // Navigation Logic
@@ -608,6 +614,9 @@ function startNavMode() {
     map.on('pointerdrag', () => {
         isFollowing = false;
     });
+    
+    // Persist state
+    saveState();
 }
 
 function initRouteSegments() {
@@ -742,6 +751,9 @@ function stopNavMode() {
     }
     
     stopSimulator();
+    
+    // Clear persisted state since user explicitly stopped navigation
+    clearSavedState();
     
     document.getElementById('screen-navigation').classList.remove('active');
     document.getElementById('screen-navigation').classList.add('hidden');
@@ -927,3 +939,139 @@ document.addEventListener('keydown', (e) => {
         else startSimulator();
     }
 });
+
+// ==========================================
+// Google Maps Rescue Button
+// ==========================================
+
+document.getElementById('btn-rescue-gmaps').addEventListener('click', () => {
+    if (!currentDestination) {
+        showToast('Chưa có điểm đến để cứu hộ!');
+        return;
+    }
+    
+    const destLat = currentDestination.lat;
+    const destLng = currentDestination.lng;
+    
+    // Build Google Maps deep link with dir_action=navigate to jump straight into navigation
+    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving&dir_action=navigate`;
+    
+    // Save state before leaving (OS may kill the Mini App)
+    saveState();
+    
+    showToast('Đang mở Google Maps...');
+    tg.HapticFeedback.notificationOccurred('warning');
+    
+    // Use Telegram WebApp API to open external link (forces native browser/app)
+    try {
+        tg.openLink(gmapsUrl);
+    } catch (e) {
+        // Fallback if Telegram API not available
+        window.open(gmapsUrl, '_blank');
+    }
+});
+
+// ==========================================
+// State Persistence (localStorage)
+// ==========================================
+
+const STATE_KEY = 'sgn_route_state';
+
+function saveState() {
+    try {
+        const state = {
+            currentOrigin,
+            currentDestination,
+            currentRouteGeoJSON,
+            isNavigating,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+        console.warn('Failed to save state:', e);
+    }
+}
+
+function clearSavedState() {
+    try {
+        localStorage.removeItem(STATE_KEY);
+    } catch (e) {
+        console.warn('Failed to clear state:', e);
+    }
+}
+
+function restoreState() {
+    try {
+        const raw = localStorage.getItem(STATE_KEY);
+        if (!raw) return false;
+        
+        const state = JSON.parse(raw);
+        
+        // Ignore state older than 2 hours
+        if (Date.now() - state.timestamp > 2 * 60 * 60 * 1000) {
+            clearSavedState();
+            return false;
+        }
+        
+        // Restore origin & destination
+        if (state.currentOrigin) {
+            currentOrigin = state.currentOrigin;
+            inputOrigin.value = currentOrigin.name || 'Vị trí bắt đầu';
+            originMarker.setPosition(ol.proj.fromLonLat([currentOrigin.lng, currentOrigin.lat]));
+        }
+        if (state.currentDestination) {
+            currentDestination = state.currentDestination;
+            inputDestination.value = currentDestination.name || 'Vị trí kết thúc';
+            destMarker.setPosition(ol.proj.fromLonLat([currentDestination.lng, currentDestination.lat]));
+        }
+        
+        // Restore route and navigation mode
+        if (state.currentRouteGeoJSON) {
+            currentRouteGeoJSON = state.currentRouteGeoJSON;
+            
+            // Draw the route on the map
+            routeSource.clear();
+            const format = new ol.format.GeoJSON();
+            const features = format.readFeatures(currentRouteGeoJSON, {
+                dataProjection: 'EPSG:4326',
+                featureProjection: 'EPSG:3857'
+            });
+            routeSource.addFeatures(features);
+        }
+        
+        if (state.isNavigating && state.currentRouteGeoJSON) {
+            // Jump straight into navigation mode
+            // Don't call startNavMode() directly because it checks isNavigating
+            isNavigating = true;
+            
+            document.getElementById('screen-search').classList.remove('active');
+            document.getElementById('screen-navigation').classList.remove('hidden');
+            document.getElementById('screen-navigation').classList.add('active');
+            document.querySelector('.search-panel').classList.add('hidden');
+            
+            isFollowing = true;
+            initRouteSegments();
+            
+            if ("geolocation" in navigator) {
+                watchId = navigator.geolocation.watchPosition(handlePositionUpdate, (err) => console.warn(err), {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 5000
+                });
+            }
+            
+            map.on('pointerdrag', () => {
+                isFollowing = false;
+            });
+            
+            showToast('Đã khôi phục phiên dẫn đường');
+            return true;
+        }
+        
+        return false;
+    } catch (e) {
+        console.warn('Failed to restore state:', e);
+        clearSavedState();
+        return false;
+    }
+}

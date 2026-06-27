@@ -45,7 +45,6 @@ async def receive_result(request: Request):
             telegram_bot: TelegramBot = request.app.state.telegram_bot
             distance_km = data.get("distance_km")
             estimated_time_min = data.get("estimated_time_min")
-            navigation_url = data.get("navigation_url")
 
             pending = getattr(request.app.state, 'pending_routes', {}).get(f"job_{user_id}", {})
             
