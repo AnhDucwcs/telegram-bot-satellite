@@ -1,8 +1,8 @@
-const CACHE_NAME = 'sgn-route-v2';
+const CACHE_NAME = 'sgn-route-v3';
 const ASSETS_TO_CACHE = [
     '/static/index.html',
     '/static/app.css?v=2',
-    '/static/app.js?v=6',
+    '/static/app.js?v=7',
     'https://unpkg.com/ol@9.2.4/ol.css',
     'https://unpkg.com/ol@9.2.4/dist/ol.js',
     'https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js',

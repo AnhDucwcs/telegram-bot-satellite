@@ -654,6 +654,71 @@ function initRouteSegments() {
     }
 }
 
+function updateRouteDisplay(closestIndex, fraction) {
+    if (routeSegments.length === 0) return;
+    
+    // Clear existing
+    routeSource.clear();
+    
+    // Build passed coordinates
+    let passedCoords = [];
+    for (let i = 0; i < closestIndex; i++) {
+        passedCoords.push(ol.proj.fromLonLat(routeSegments[i].start));
+    }
+    
+    const currentSeg = routeSegments[closestIndex];
+    const startProj = ol.proj.fromLonLat(currentSeg.start);
+    const endProj = ol.proj.fromLonLat(currentSeg.end);
+    
+    // Interpolate current position on the segment
+    const interpProj = [
+        startProj[0] + (endProj[0] - startProj[0]) * (1 - fraction),
+        startProj[1] + (endProj[1] - startProj[1]) * (1 - fraction)
+    ];
+    
+    if (passedCoords.length > 0) {
+        // Only add if there's a previous point to connect to, else just start with startProj
+        const lastPassed = passedCoords[passedCoords.length - 1];
+        // Connect properly
+        if (lastPassed[0] !== startProj[0] || lastPassed[1] !== startProj[1]) {
+            passedCoords.push(startProj);
+        }
+    } else {
+        passedCoords.push(startProj);
+    }
+    
+    passedCoords.push(interpProj);
+    
+    // Build remaining coordinates
+    let remainingCoords = [interpProj, endProj];
+    for (let i = closestIndex + 1; i < routeSegments.length; i++) {
+        remainingCoords.push(ol.proj.fromLonLat(routeSegments[i].end));
+    }
+    
+    // Create Features
+    const passedFeature = new ol.Feature({
+        geometry: new ol.geom.LineString(passedCoords)
+    });
+    passedFeature.setStyle(new ol.style.Style({
+        stroke: new ol.style.Stroke({
+            color: 'rgba(156, 163, 175, 0.5)', // Tailwind gray-400 with opacity
+            width: 6
+        })
+    }));
+    
+    const remainingFeature = new ol.Feature({
+        geometry: new ol.geom.LineString(remainingCoords)
+    });
+    remainingFeature.setStyle(new ol.style.Style({
+        stroke: new ol.style.Stroke({
+            color: '#3b82f6', // Tailwind blue-500
+            width: 6
+        })
+    }));
+    
+    routeSource.addFeatures([passedFeature, remainingFeature]);
+}
+
 function handlePositionUpdate(position) {
     const { latitude, longitude } = position.coords;
     const coords = ol.proj.fromLonLat([longitude, latitude]);
@@ -714,32 +779,41 @@ function handlePositionUpdate(position) {
         });
     }
     
-    // Dynamic ETA calculation
+    // Dynamic ETA & Distance calculation
     if (routeSegments.length > 0) {
         let remainingTimeMin = 0;
+        let remainingDistMeters = 0;
         
-        // Add time for all upcoming full segments
+        // Add time and distance for all upcoming full segments
         for (let i = closestIndex + 1; i < routeSegments.length; i++) {
             remainingTimeMin += routeSegments[i].timeMin;
+            remainingDistMeters += turf.distance(turf.point(routeSegments[i].start), turf.point(routeSegments[i].end), {units: 'meters'});
         }
         
         // For the current segment, calculate remaining fraction
         const currentSeg = routeSegments[closestIndex];
         const segLenMeters = turf.distance(turf.point(currentSeg.start), turf.point(currentSeg.end), {units: 'meters'});
-        // Approximate distance passed along this segment (using distance from start to projection)
-        // For simplicity, we just use the remaining length. 
-        // Turf's pointToLineDistance gives orthogonal distance. To find progress, we can use distance from user to end node
+        // Approximate distance passed along this segment
         const distToEndMeters = turf.distance(turf.point([longitude, latitude]), turf.point(currentSeg.end), {units: 'meters'});
         
+        let fraction = 1;
         if (segLenMeters > 0) {
-            let fraction = distToEndMeters / segLenMeters;
+            fraction = distToEndMeters / segLenMeters;
             fraction = Math.min(Math.max(fraction, 0), 1); // Clamp between 0 and 1
             remainingTimeMin += currentSeg.timeMin * fraction;
+            remainingDistMeters += segLenMeters * fraction;
         }
         
         // Update UI
         const etaText = `${Math.ceil(remainingTimeMin)} phút`;
         document.getElementById('nav-eta').textContent = etaText;
+        
+        const distKm = remainingDistMeters / 1000;
+        const distText = distKm >= 1 ? `${distKm.toFixed(1)} km` : `${Math.round(remainingDistMeters)} m`;
+        document.getElementById('nav-total-dist').textContent = distText;
+        
+        // Update Route Color Display (gray out passed segments)
+        updateRouteDisplay(closestIndex, fraction);
     }
     
     const now = Date.now();
@@ -994,6 +1068,9 @@ document.getElementById('btn-rescue-gmaps').addEventListener('click', () => {
     
     const isAndroid = /Android/i.test(navigator.userAgent);
     
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const fallbackTravelMode = isMobile ? 'two-wheeler' : 'driving';
+    
     if (isAndroid) {
         // Android: use intent scheme for native two-wheeler navigation
         const intentUrl = `intent://navigation?destination=${destLat},${destLng}&mode=tw#Intent;scheme=google.navigation;package=com.google.android.apps.maps;end`;
@@ -1001,12 +1078,12 @@ document.getElementById('btn-rescue-gmaps').addEventListener('click', () => {
             tg.openLink(intentUrl);
         } catch (e) {
             // Fallback to standard Maps URL
-            const fallback = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving&dir_action=navigate`;
+            const fallback = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=${fallbackTravelMode}&dir_action=navigate`;
             tg.openLink(fallback);
         }
     } else {
         // iOS / Desktop: use standard Google Maps URL
-        const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving&dir_action=navigate`;
+        const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=${fallbackTravelMode}&dir_action=navigate`;
         try {
             tg.openLink(gmapsUrl);
         } catch (e) {
