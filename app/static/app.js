@@ -954,7 +954,10 @@ document.getElementById('btn-rescue-gmaps').addEventListener('click', () => {
     const destLng = currentDestination.lng;
     
     // Build Google Maps deep link with dir_action=navigate to jump straight into navigation
-    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving&dir_action=navigate`;
+    // Use two-wheeler mode on mobile (Vietnam), driving on desktop
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const travelMode = isMobile ? 'two-wheeler' : 'driving';
+    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=${travelMode}&dir_action=navigate`;
     
     // Save state before leaving (OS may kill the Mini App)
     saveState();
@@ -984,6 +987,8 @@ function saveState() {
             currentDestination,
             currentRouteGeoJSON,
             isNavigating,
+            etaText: document.getElementById('nav-eta').textContent,
+            distText: document.getElementById('nav-total-dist').textContent,
             timestamp: Date.now()
         };
         localStorage.setItem(STATE_KEY, JSON.stringify(state));
@@ -1048,6 +1053,16 @@ function restoreState() {
             document.getElementById('screen-navigation').classList.remove('hidden');
             document.getElementById('screen-navigation').classList.add('active');
             document.querySelector('.search-panel').classList.add('hidden');
+            
+            // Restore ETA and distance
+            if (state.etaText) {
+                document.getElementById('nav-eta').textContent = state.etaText;
+                document.getElementById('info-eta').textContent = state.etaText;
+            }
+            if (state.distText) {
+                document.getElementById('nav-total-dist').textContent = state.distText;
+                document.getElementById('info-dist').textContent = state.distText;
+            }
             
             isFollowing = true;
             initRouteSegments();
