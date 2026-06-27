@@ -701,7 +701,7 @@ function updateRouteDisplay(closestIndex, fraction) {
     });
     passedFeature.setStyle(new ol.style.Style({
         stroke: new ol.style.Stroke({
-            color: 'rgba(156, 163, 175, 0.5)', // Tailwind gray-400 with opacity
+            color: '#9ca3af', // Tailwind solid gray-400
             width: 6
         })
     }));
@@ -1066,29 +1066,16 @@ document.getElementById('btn-rescue-gmaps').addEventListener('click', () => {
     showToast('Đang mở Google Maps...');
     tg.HapticFeedback.notificationOccurred('warning');
     
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const fallbackTravelMode = isMobile ? 'two-wheeler' : 'driving';
+    const travelMode = isMobile ? 'two-wheeler' : 'driving';
+    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=${travelMode}&dir_action=navigate`;
     
-    if (isAndroid) {
-        // Android: use intent scheme for native two-wheeler navigation
-        const intentUrl = `intent://navigation?destination=${destLat},${destLng}&mode=tw#Intent;scheme=google.navigation;package=com.google.android.apps.maps;end`;
-        try {
-            tg.openLink(intentUrl);
-        } catch (e) {
-            // Fallback to standard Maps URL
-            const fallback = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=${fallbackTravelMode}&dir_action=navigate`;
-            tg.openLink(fallback);
-        }
-    } else {
-        // iOS / Desktop: use standard Google Maps URL
-        const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=${fallbackTravelMode}&dir_action=navigate`;
-        try {
-            tg.openLink(gmapsUrl);
-        } catch (e) {
-            window.open(gmapsUrl, '_blank');
-        }
+    // Use Telegram WebApp API to open external link (forces native browser/app)
+    try {
+        tg.openLink(gmapsUrl);
+    } catch (e) {
+        // Fallback if Telegram API not available
+        window.open(gmapsUrl, '_blank');
     }
 });
 
