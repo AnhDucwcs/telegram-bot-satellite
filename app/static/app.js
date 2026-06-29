@@ -581,6 +581,27 @@ let isFollowing = true;
 let isRerouting = false;
 let isNavigating = false;
 let lastRerouteTime = 0;
+let wakeLock = null;
+
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Wake Lock is active!');
+        }
+    } catch (err) {
+        console.warn(`Wake Lock error: ${err.name}, ${err.message}`);
+    }
+}
+
+function releaseWakeLock() {
+    if (wakeLock !== null) {
+        wakeLock.release().then(() => {
+            wakeLock = null;
+            console.log('Wake Lock released!');
+        });
+    }
+}
 
 function startNavMode() {
     if (isNavigating) return;
@@ -590,6 +611,9 @@ function startNavMode() {
     document.getElementById('screen-navigation').classList.remove('hidden');
     document.getElementById('screen-navigation').classList.add('active');
     document.querySelector('.search-panel').classList.add('hidden');
+    document.getElementById('btn-my-location-fab').classList.add('hidden');
+    
+    requestWakeLock();
     
     tg.HapticFeedback.notificationOccurred('success');
     
@@ -866,6 +890,9 @@ function stopNavMode() {
     document.getElementById('screen-navigation').classList.add('hidden');
     document.getElementById('screen-search').classList.add('active');
     document.querySelector('.search-panel').classList.remove('hidden');
+    document.getElementById('btn-my-location-fab').classList.remove('hidden');
+    
+    releaseWakeLock();
     
     resetApp();
 }
@@ -1158,6 +1185,9 @@ function restoreState() {
             document.getElementById('screen-navigation').classList.remove('hidden');
             document.getElementById('screen-navigation').classList.add('active');
             document.querySelector('.search-panel').classList.add('hidden');
+            document.getElementById('btn-my-location-fab').classList.add('hidden');
+            
+            requestWakeLock();
             
             // Restore ETA and distance
             if (state.etaText) {

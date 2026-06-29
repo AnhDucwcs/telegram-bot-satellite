@@ -314,6 +314,7 @@ input:not(:placeholder-shown) + .clear-btn {
 
 .nav-footer {
     margin: 16px 16px 24px 16px;
+    margin-top: auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
