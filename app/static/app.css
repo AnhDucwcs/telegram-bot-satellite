@@ -313,11 +313,14 @@ input:not(:placeholder-shown) + .clear-btn {
 }
 
 .nav-footer {
-    margin: 16px 16px 24px 16px;
-    margin-top: auto;
+    position: absolute;
+    bottom: 24px;
+    left: 16px;
+    right: 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin: 0;
 }
 
 .nav-stats {

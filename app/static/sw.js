@@ -1,7 +1,7 @@
-const CACHE_NAME = 'sgn-route-v6';
+const CACHE_NAME = 'sgn-route-v7';
 const ASSETS_TO_CACHE = [
     '/static/index.html',
-    '/static/app.css?v=2',
+    '/static/app.css?v=3',
     '/static/app.js?v=10',
     'https://unpkg.com/ol@9.2.4/ol.css',
     'https://unpkg.com/ol@9.2.4/dist/ol.js',
