@@ -82,8 +82,19 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     # 1. Save to history
     origin = payload.get("origin")
     destination = payload.get("destination")
-    if origin and destination:
+    is_reroute = payload.get("is_reroute", False)
+    
+    if origin and destination and not is_reroute:
         await HistoryService.add_recent_route(user_id, origin, destination)
+        
+    if not hasattr(request.app.state, 'pending_routes'):
+        request.app.state.pending_routes = {}
+        
+    request.app.state.pending_routes[f"job_{user_id}"] = {
+        "origin_name": origin.get("name", "Vị trí bắt đầu"),
+        "destination_name": destination.get("name", "Vị trí kết thúc"),
+        "is_reroute": is_reroute
+    }
         
     # 2. Forward to AI engine
     ai_client = request.app.state.ai_client
@@ -91,18 +102,28 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     response = await ai_client.client.post(
         f"{settings.AI_ENGINE_URL}/api/v1/routing/",
         json={
-            "origin_lat": origin["lat"],
-            "origin_lng": origin["lng"],
-            "destination_lat": destination["lat"],
-            "destination_lng": destination["lng"],
-            "user_id": str(user_id),
-            "callback_url": settings.INTERNAL_RESULT_CALLBACK_URL
+            "userId": str(user_id),
+            "conversationId": f"webapp_{user_id}",
+            "platform": "telegram",
+            "callbackUrl": settings.INTERNAL_RESULT_CALLBACK_URL,
+            "origin": {
+                "latitude": origin["lat"],
+                "longitude": origin["lng"]
+            },
+            "destination": {
+                "latitude": destination["lat"],
+                "longitude": destination["lng"]
+            }
         },
-        headers={"x-internal-api-key": settings.AI_ENGINE_API_KEY}
+        headers={"x-internal-api-key": settings.INTERNAL_API_KEY}
     )
     
     if response.status_code == 200 or response.status_code == 202:
-        return {"status": "accepted", "job_id": f"job_{user_id}_{origin['lat']}_{destination['lat']}"} # Simplification for now
+        # Clear any old job result to prevent stale data
+        if hasattr(request.app.state, 'job_results') and f"job_{user_id}" in request.app.state.job_results:
+            del request.app.state.job_results[f"job_{user_id}"]
+            
+        return {"status": "accepted", "job_id": f"job_{user_id}"} 
     
     raise HTTPException(status_code=500, detail="Failed to contact AI Engine")
 

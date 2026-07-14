@@ -7,7 +7,6 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Telegram Bot Satellite"
     TELEGRAM_BOT_TOKEN: str
     AI_ENGINE_URL: str
-    AI_ENGINE_API_KEY: str 
     BASE_URL: str 
     WEBHOOK_SECRET: str
     INTERNAL_API_KEY: str

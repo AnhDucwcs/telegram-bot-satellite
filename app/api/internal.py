@@ -45,26 +45,22 @@ async def receive_result(request: Request):
             telegram_bot: TelegramBot = request.app.state.telegram_bot
             distance_km = data.get("distance_km")
             estimated_time_min = data.get("estimated_time_min")
-            navigation_url = data.get("navigation_url")
 
-            text = "Đã tìm thấy lộ trình phù hợp."
-            markup = None
-            if distance_km is not None and estimated_time_min is not None:
-                text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
-            if route_id:
-                markup = InlineKeyboardMarkup(inline_keyboard=[
-                        [
-                            InlineKeyboardButton(
-                                text="🗺️ Xem bản đồ", 
-                                web_app=WebAppInfo(url=f"{settings.BASE_URL}/static/index.html?route_id={route_id}")
-                            )
-                        ]
-                    ])
+            pending = getattr(request.app.state, 'pending_routes', {}).get(f"job_{user_id}", {})
+            
+            # Skip sending message if this is just a background re-route
+            if not pending.get("is_reroute", False):
+                origin_name = pending.get("origin_name", "Vị trí bắt đầu")
+                destination_name = pending.get("destination_name", "Vị trí kết thúc")
+
+                text = f"Đã tìm thấy lộ trình: {origin_name} ➔ {destination_name}"
+                if distance_km is not None and estimated_time_min is not None:
+                    text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
 
                 try:
-                    await telegram_bot.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+                    await telegram_bot.bot.send_message(chat_id=chat_id, text=text)
                 except Exception as e:
-                    logger.error(f"Error sending msg: {e}")
+                    logger.error(f"Failed to send result to telegram: {e}")
             
     else:
         # Failure case

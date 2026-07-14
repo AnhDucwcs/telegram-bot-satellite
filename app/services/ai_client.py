@@ -6,7 +6,6 @@ class AIClient:
     def __init__(self):
         self.client = httpx.AsyncClient(timeout=120.0)
         self.ai_engine_url = settings.AI_ENGINE_URL
-        self.ai_engine_api_key = settings.AI_ENGINE_API_KEY
 
     def _build_callback_url(self) -> str:
         if settings.INTERNAL_RESULT_CALLBACK_URL:

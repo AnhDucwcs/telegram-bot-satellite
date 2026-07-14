@@ -10,6 +10,14 @@
     --error: #ef4444;
 }
 
+body.light-mode {
+    --bg-dark: #f8fafc;
+    --bg-panel: rgba(255, 255, 255, 0.85);
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --border-color: rgba(0, 0, 0, 0.1);
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -35,12 +43,23 @@ body {
     z-index: 1;
 }
 
-/* Fix leaflet dark mode tiles slightly */
-.leaflet-layer,
-.leaflet-control-zoom-in,
-.leaflet-control-zoom-out,
-.leaflet-control-attribution {
+/* OpenLayers Overlays and Marker Fixes */
+.user-marker {
+    background: none !important;
+    border: none !important;
+}
+
+/* Fix OpenLayers dark mode tiles slightly */
+.ol-layer canvas,
+.ol-control button,
+.ol-attribution {
     filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+body.light-mode .ol-layer canvas,
+body.light-mode .ol-control button,
+body.light-mode .ol-attribution {
+    filter: none;
 }
 
 .ui-overlay {
@@ -59,7 +78,7 @@ body {
 
 .ui-overlay.active {
     opacity: 1;
-    pointer-events: auto;
+    pointer-events: none; /* Removed auto to allow map dragging */
 }
 
 .hidden {
@@ -87,6 +106,14 @@ body {
     background: -webkit-linear-gradient(45deg, #60a5fa, #3b82f6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+}
+
+.search-panel.collapsed .input-group,
+.search-panel.collapsed .route-line,
+.search-panel.collapsed .suggestions-box,
+.search-panel.collapsed .recent-routes-box,
+.search-panel.collapsed .route-info-box {
+    display: none !important;
 }
 
 .input-group {
@@ -286,10 +313,14 @@ input:not(:placeholder-shown) + .clear-btn {
 }
 
 .nav-footer {
-    margin: 16px 16px 24px 16px;
+    position: absolute;
+    bottom: 24px;
+    left: 16px;
+    right: 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin: 0;
 }
 
 .nav-stats {
@@ -338,4 +369,95 @@ input:not(:placeholder-shown) + .clear-btn {
 @keyframes slideDown {
     from { top: -50px; opacity: 0; }
     to { top: 20px; opacity: 1; }
+}
+
+/* Map Picker UI */
+#map-picker-ui {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 50;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+.crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -100%);
+    font-size: 40px;
+    color: var(--error);
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(255,255,255,0.8);
+}
+.picker-footer {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    pointer-events: auto;
+}
+
+body.light-mode .btn-secondary {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-main);
+}
+
+body.light-mode .nav-distance,
+body.light-mode .nav-street,
+body.light-mode .stat-time,
+body.light-mode .stat-dist {
+    color: var(--text-main);
+}
+body.light-mode .stat-time {
+    color: #059669; /* darker green for contrast in light mode */
+}
+body.light-mode .btn-icon {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--text-main);
+}
+
+.fab-btn {
+    position: absolute;
+    bottom: 30px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 25px;
+    background: var(--bg-panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    pointer-events: auto;
+    transition: transform 0.1s;
+}
+.fab-btn:active {
+    transform: scale(0.9);
+}
+
+/* Rescue Button (Google Maps) */
+.btn-rescue {
+    background: rgba(239, 68, 68, 0.25) !important;
+    color: #fca5a5 !important;
+    border: 1px solid rgba(239, 68, 68, 0.5) !important;
+    animation: rescue-pulse 2s ease-in-out infinite;
+}
+.btn-rescue:active {
+    background: rgba(239, 68, 68, 0.5) !important;
+}
+body.light-mode .btn-rescue {
+    background: rgba(239, 68, 68, 0.15) !important;
+    color: #dc2626 !important;
+    border: 1px solid rgba(239, 68, 68, 0.4) !important;
+}
+
+@keyframes rescue-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
 }

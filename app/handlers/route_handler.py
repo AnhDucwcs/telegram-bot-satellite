@@ -5,14 +5,39 @@ from app.services.ai_client import AIClient
 from app.services.session_manager import session_manager
 from app.models.user_session import UserSession 
 from app.core.logger import logger
+from app.core.config import settings
 
 
 router = aiogram.Router()
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("Chào mừng bạn đến với bot tính toán lộ trình!\n\n"
-                         "Để bắt đầu, hãy nhập lệnh /route để chọn điểm xuất phát và điểm đến của bạn.")
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [
+            types.InlineKeyboardButton(
+                text="🗺️ Mở Bản Đồ Dẫn Đường", 
+                web_app=types.WebAppInfo(url=f"{settings.BASE_URL}/static/index.html")
+            )
+        ]
+    ])
+    await message.answer(
+        "Chào mừng bạn đến với Hệ thống tìm đường giao thông!\n\n"
+        "Bạn có thể sử dụng Mini App để có trải nghiệm tìm đường và dẫn đường thời gian thực tốt nhất bằng cách bấm nút bên dưới.\n\n"
+        "Hoặc dùng lệnh /route để tìm đường cơ bản qua tin nhắn.",
+        reply_markup=markup
+    )
+
+@router.message(Command("app"))
+async def cmd_app(message: types.Message):
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [
+            types.InlineKeyboardButton(
+                text="🗺️ Mở Bản Đồ Dẫn Đường", 
+                web_app=types.WebAppInfo(url=f"{settings.BASE_URL}/static/index.html")
+            )
+        ]
+    ])
+    await message.answer("Bấm vào nút bên dưới để mở ứng dụng dẫn đường:", reply_markup=markup)
 
 @router.message(Command("route"))
 async def cmd_route(message: types.Message):
