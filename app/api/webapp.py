@@ -105,7 +105,6 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
             "userId": str(user_id),
             "conversationId": f"webapp_{user_id}",
             "platform": "telegram",
-            "callbackUrl": settings.INTERNAL_RESULT_CALLBACK_URL,
             "origin": {
                 "latitude": origin["lat"],
                 "longitude": origin["lng"]

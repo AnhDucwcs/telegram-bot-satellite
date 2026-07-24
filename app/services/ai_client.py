@@ -7,11 +7,6 @@ class AIClient:
         self.client = httpx.AsyncClient(timeout=120.0)
         self.ai_engine_url = settings.AI_ENGINE_URL
 
-    def _build_callback_url(self) -> str:
-        if settings.INTERNAL_RESULT_CALLBACK_URL:
-            return settings.INTERNAL_RESULT_CALLBACK_URL
-        return f"{settings.BASE_URL}/internal/result"
-
     async def get_route(self, start_lat, start_lng, end_lat, end_lng, user_id: str, conversation_id: str):
         headers = {
             "x-internal-api-key": settings.INTERNAL_API_KEY,
@@ -21,7 +16,6 @@ class AIClient:
             "userId": user_id,
             "conversationId": conversation_id,
             "platform": "telegram",
-            "callbackUrl": self._build_callback_url(),
             "origin": {
                 "latitude": start_lat,
                 "longitude": start_lng
