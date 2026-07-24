@@ -490,40 +490,20 @@ async function calculateRoute(startNavigation = false, isReroute = false) {
 }
 
 function pollJobStatus(jobId, startNavigation) {
-    const maxRetries = 30;
-    let retries = 0;
-    
     return new Promise((resolve, reject) => {
-        const interval = setInterval(async () => {
-            retries++;
-            if (retries > maxRetries) {
-                clearInterval(interval);
-                loadingScreen.classList.add('hidden');
-                alert("Quá thời gian chờ tính đường.");
-                reject(new Error("Timeout"));
-                return;
-            }
-            
+        const poll = async (retries = 0) => {
+            if (retries > 60) return reject(new Error("Timeout")), loadingScreen.classList.add('hidden'), alert("Quá thời gian chờ tính đường.");
             try {
-                const res = await fetch(`/api/v1/webapp/job/${jobId}`, {
-                    headers: { 'x-telegram-init-data': tg.initData }
-                });
+                const res = await fetch(`/api/v1/webapp/job/${jobId}`, { headers: { 'x-telegram-init-data': tg.initData } });
                 const data = await res.json();
                 
-                if (data.status === 'completed') {
-                    clearInterval(interval);
-                    handleRouteResult(data.result, startNavigation);
-                    resolve();
-                } else if (data.status === 'error') {
-                    clearInterval(interval);
-                    loadingScreen.classList.add('hidden');
-                    alert(data.message || "Không tìm thấy đường.");
-                    reject(new Error(data.message));
-                }
-            } catch (e) {
-                console.error("Polling error", e);
-            }
-        }, 2000);
+                if (data.status === 'completed') return handleRouteResult(data.result, startNavigation), resolve();
+                if (data.status === 'error') return loadingScreen.classList.add('hidden'), alert(data.message || "Không tìm thấy đường."), reject(new Error(data.message));
+            } catch (e) { console.error("Polling error", e); }
+            
+            setTimeout(() => poll(retries + 1), 500);
+        };
+        poll(0);
     });
 }
 
