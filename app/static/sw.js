@@ -1,12 +1,13 @@
-const CACHE_NAME = 'sgn-route-v7';
+const CACHE_NAME = 'sgn-route-v8';
 const ASSETS_TO_CACHE = [
     '/static/index.html',
-    '/static/app.css?v=3',
-    '/static/app.js?v=10',
+    '/static/app.css?v=4',
+    '/static/app.js?v=11',
     'https://unpkg.com/ol@9.2.4/ol.css',
     'https://unpkg.com/ol@9.2.4/dist/ol.js',
     'https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js',
-    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+    'https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap',
+    'https://unpkg.com/@phosphor-icons/web',
     'https://telegram.org/js/telegram-web-app.js'
 ];
 

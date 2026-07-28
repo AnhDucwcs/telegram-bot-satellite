@@ -207,6 +207,13 @@ function clearInput(type) {
 function resetApp() {
     clearInput('origin');
     clearInput('destination');
+    
+    traveledPathCoords = [];
+    if (globalPassedFeature) routeSource.removeFeature(globalPassedFeature);
+    if (globalRemainingFeature) routeSource.removeFeature(globalRemainingFeature);
+    globalPassedFeature = null;
+    globalRemainingFeature = null;
+    
     if (globalLocationMarker.getPosition()) {
         map.getView().animate({center: globalLocationMarker.getPosition(), zoom: 17, rotation: 0, duration: 500});
     } else {
@@ -491,7 +498,7 @@ async function calculateRoute(startNavigation = false, isReroute = false) {
         const data = await res.json();
         
         if (data.status === 'accepted' && data.job_id) {
-            return pollJobStatus(data.job_id, startNavigation);
+            return pollJobStatus(data.job_id, startNavigation, isReroute);
         } else {
             throw new Error("Failed to start job");
         }
@@ -502,7 +509,7 @@ async function calculateRoute(startNavigation = false, isReroute = false) {
     }
 }
 
-function pollJobStatus(jobId, startNavigation) {
+function pollJobStatus(jobId, startNavigation, isReroute) {
     return new Promise((resolve, reject) => {
         const poll = async (retries = 0) => {
             if (retries > 60) return reject(new Error("Timeout")), loadingScreen.classList.add('hidden'), alert("Quá thời gian chờ tính đường.");
@@ -510,7 +517,7 @@ function pollJobStatus(jobId, startNavigation) {
                 const res = await fetch(`/api/v1/webapp/job/${jobId}`, { headers: { 'x-telegram-init-data': tg.initData } });
                 const data = await res.json();
                 
-                if (data.status === 'completed') return handleRouteResult(data.result, startNavigation), resolve();
+                if (data.status === 'completed') return handleRouteResult(data.result, startNavigation, isReroute), resolve();
                 if (data.status === 'error') return loadingScreen.classList.add('hidden'), alert(data.message || "Không tìm thấy đường."), reject(new Error(data.message));
             } catch (e) { console.error("Polling error", e); }
             
@@ -520,18 +527,26 @@ function pollJobStatus(jobId, startNavigation) {
     });
 }
 
-function handleRouteResult(result, startNavigation) {
+function handleRouteResult(result, startNavigation, isReroute = false) {
     loadingScreen.classList.add('hidden');
     
-    routeSource.clear();
     currentRouteGeoJSON = result.geojson;
     
-    const format = new ol.format.GeoJSON();
-    const features = format.readFeatures(currentRouteGeoJSON, {
-        dataProjection: 'EPSG:4326',
-        featureProjection: 'EPSG:3857'
-    });
-    routeSource.addFeatures(features);
+    if (!startNavigation) {
+        // Just previewing route, clear all and draw single blue line
+        routeSource.clear();
+        const format = new ol.format.GeoJSON();
+        const features = format.readFeatures(currentRouteGeoJSON, {
+            dataProjection: 'EPSG:4326',
+            featureProjection: 'EPSG:3857'
+        });
+        routeSource.addFeatures(features);
+    } else {
+        // During navigation, don't draw raw GeoJSON, let updateRouteDisplay handle it
+        if (!isReroute) {
+            routeSource.clear();
+        }
+    }
     
     if (!isNavigating) {
         map.getView().fit(routeSource.getExtent(), {padding: [30, 30, 30, 30], duration: 500});
@@ -558,7 +573,8 @@ function handleRouteResult(result, startNavigation) {
         if (!isNavigating) {
             startNavMode();
         } else {
-            initRouteSegments();
+            initRouteSegments(isReroute);
+            isRerouting = false; // Reset reroute lock
         }
     } else {
         actionButtons.classList.add('hidden');
@@ -580,6 +596,10 @@ let lastRerouteTime = 0;
 let wakeLock = null;
 let totalRouteTimeMin = 0;
 let totalRouteDistMeters = 0;
+let globalPassedFeature = null;
+let globalRemainingFeature = null;
+let traveledPathCoords = [];
+let lastPeriodicRerouteTime = 0;
 
 async function requestWakeLock() {
     try {
@@ -640,11 +660,26 @@ function startNavMode() {
     saveState();
 }
 
-function initRouteSegments() {
+function initRouteSegments(isReroute = false) {
     if (!currentRouteGeoJSON) return;
     
     routeSegments = [];
     currentSegmentIndex = 0;
+    
+    if (!isReroute) {
+        traveledPathCoords = [];
+        if (globalPassedFeature) routeSource.removeFeature(globalPassedFeature);
+        if (globalRemainingFeature) routeSource.removeFeature(globalRemainingFeature);
+        
+        globalPassedFeature = new ol.Feature({ geometry: new ol.geom.LineString([]) });
+        globalPassedFeature.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#9ca3af', width: 6 }) }));
+        
+        globalRemainingFeature = new ol.Feature({ geometry: new ol.geom.LineString([]) });
+        globalRemainingFeature.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#3b82f6', width: 6 }) }));
+        
+        routeSource.addFeatures([globalPassedFeature, globalRemainingFeature]);
+        lastPeriodicRerouteTime = Date.now();
+    }
     
     try {
         let coords = [];
@@ -677,16 +712,7 @@ function initRouteSegments() {
 }
 
 function updateRouteDisplay(closestIndex, fraction) {
-    if (routeSegments.length === 0) return;
-    
-    // Clear existing
-    routeSource.clear();
-    
-    // Build passed coordinates
-    let passedCoords = [];
-    for (let i = 0; i < closestIndex; i++) {
-        passedCoords.push(ol.proj.fromLonLat(routeSegments[i].start));
-    }
+    if (routeSegments.length === 0 || !globalPassedFeature || !globalRemainingFeature) return;
     
     const currentSeg = routeSegments[closestIndex];
     const startProj = ol.proj.fromLonLat(currentSeg.start);
@@ -698,18 +724,9 @@ function updateRouteDisplay(closestIndex, fraction) {
         startProj[1] + (endProj[1] - startProj[1]) * (1 - fraction)
     ];
     
-    if (passedCoords.length > 0) {
-        // Only add if there's a previous point to connect to, else just start with startProj
-        const lastPassed = passedCoords[passedCoords.length - 1];
-        // Connect properly
-        if (lastPassed[0] !== startProj[0] || lastPassed[1] !== startProj[1]) {
-            passedCoords.push(startProj);
-        }
-    } else {
-        passedCoords.push(startProj);
+    if (traveledPathCoords.length >= 2) {
+        globalPassedFeature.getGeometry().setCoordinates(traveledPathCoords);
     }
-    
-    passedCoords.push(interpProj);
     
     // Build remaining coordinates
     let remainingCoords = [interpProj, endProj];
@@ -717,28 +734,7 @@ function updateRouteDisplay(closestIndex, fraction) {
         remainingCoords.push(ol.proj.fromLonLat(routeSegments[i].end));
     }
     
-    // Create Features
-    const passedFeature = new ol.Feature({
-        geometry: new ol.geom.LineString(passedCoords)
-    });
-    passedFeature.setStyle(new ol.style.Style({
-        stroke: new ol.style.Stroke({
-            color: '#9ca3af', // Tailwind solid gray-400
-            width: 6
-        })
-    }));
-    
-    const remainingFeature = new ol.Feature({
-        geometry: new ol.geom.LineString(remainingCoords)
-    });
-    remainingFeature.setStyle(new ol.style.Style({
-        stroke: new ol.style.Stroke({
-            color: '#3b82f6', // Tailwind blue-500
-            width: 6
-        })
-    }));
-    
-    routeSource.addFeatures([passedFeature, remainingFeature]);
+    globalRemainingFeature.getGeometry().setCoordinates(remainingCoords);
 }
 
 function handlePositionUpdate(position) {
@@ -750,6 +746,16 @@ function handlePositionUpdate(position) {
     }
     
     if (routeSegments.length === 0 || isRerouting) return;
+    
+    // Always push current coordinate to traveledPathCoords for Independent Path Tracking
+    if (traveledPathCoords.length === 0) {
+        traveledPathCoords.push(coords);
+    } else {
+        const lastCoords = traveledPathCoords[traveledPathCoords.length - 1];
+        if (lastCoords[0] !== coords[0] || lastCoords[1] !== coords[1]) {
+            traveledPathCoords.push(coords);
+        }
+    }
     
     let minDistance = Infinity;
     let closestIndex = currentSegmentIndex;
@@ -771,6 +777,23 @@ function handlePositionUpdate(position) {
     
     if (closestIndex > currentSegmentIndex) {
         currentSegmentIndex = closestIndex;
+    }
+    
+    // Destination Reached Logic
+    const isAtEndSegments = currentSegmentIndex >= routeSegments.length - 2;
+    const finalDest = routeSegments[routeSegments.length - 1].end;
+    const distToDest = turf.distance(
+        turf.point([longitude, latitude]),
+        turf.point(finalDest),
+        {units: 'meters'}
+    );
+    
+    if (isAtEndSegments && distToDest < 50) {
+        // Reached destination!
+        showToast("Chúc mừng! Bạn đã đến đích.", true);
+        tg.HapticFeedback.notificationOccurred('success');
+        stopNavMode();
+        return;
     }
     
     const debugEl = document.getElementById('sim-debug');
@@ -839,6 +862,20 @@ function handlePositionUpdate(position) {
     }
     
     const now = Date.now();
+    
+    // Periodic Rerouting (Every 3 minutes)
+    if (now - lastPeriodicRerouteTime > 180000 && minDistance <= 50) {
+        lastPeriodicRerouteTime = now;
+        currentOrigin = {
+            name: "Vị trí hiện tại",
+            lat: latitude,
+            lng: longitude
+        };
+        // Background reroute, no loading screen, preserve traveled path
+        calculateRoute(true, true);
+    }
+    
+    // Deviation Rerouting
     if (minDistance > 50 && (now - lastRerouteTime > 15000)) {
         isRerouting = true;
         lastRerouteTime = now;
@@ -897,6 +934,18 @@ function stopNavMode() {
 
 document.getElementById('btn-stop-nav').addEventListener('click', stopNavMode);
 
+// FAB Menu Logic
+const fabMenuBtn = document.getElementById('btn-nav-menu');
+const navPopupMenu = document.getElementById('nav-popup-menu');
+fabMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    navPopupMenu.classList.toggle('hidden');
+});
+document.addEventListener('click', () => {
+    if (!navPopupMenu.classList.contains('hidden')) {
+        navPopupMenu.classList.add('hidden');
+    }
+});
 document.getElementById('btn-recenter').addEventListener('click', () => {
     isFollowing = true;
     if (globalLocationMarker.getPosition()) {

@@ -83,8 +83,9 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     origin = payload.get("origin")
     destination = payload.get("destination")
     is_reroute = payload.get("is_reroute", False)
+    start_navigation = payload.get("start_navigation", False)
     
-    if origin and destination and not is_reroute:
+    if origin and destination and not is_reroute and start_navigation:
         await HistoryService.add_recent_route(user_id, origin, destination)
         
     if not hasattr(request.app.state, 'pending_routes'):
