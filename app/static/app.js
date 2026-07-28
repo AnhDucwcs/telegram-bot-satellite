@@ -211,6 +211,7 @@ function resetApp() {
     clearInput('origin');
     clearInput('destination');
     
+    currentRouteGeoJSON = null;
     traveledPathCoords = [];
     if (globalPassedFeature) routeSource.removeFeature(globalPassedFeature);
     if (globalRemainingFeature) routeSource.removeFeature(globalRemainingFeature);
@@ -222,6 +223,8 @@ function resetApp() {
     } else {
         map.getView().animate({rotation: 0, duration: 500});
     }
+    
+    clearSavedState();
 }
 
 async function handleInputFocus(type) {
@@ -309,7 +312,6 @@ async function searchLocation(query, type) {
 
 function selectLocation(loc, type) {
     suggestionsBox.classList.add('hidden');
-    recentRoutesBox.classList.remove('hidden');
     
     const coords = ol.proj.fromLonLat([loc.lng, loc.lat]);
     
@@ -323,6 +325,12 @@ function selectLocation(loc, type) {
         currentDestination = loc;
         destMarker.setPosition(coords);
         map.getView().animate({center: coords, zoom: 15, duration: 500});
+    }
+    
+    if (currentOrigin && currentDestination) {
+        recentRoutesBox.classList.add('hidden');
+    } else {
+        recentRoutesBox.classList.remove('hidden');
     }
     
     routeSource.clear();
@@ -344,9 +352,14 @@ function checkAndShowButtons() {
     if (currentOrigin && currentDestination && !isNavigating) {
         actionButtons.classList.remove('hidden');
         document.getElementById('route-info-box').classList.add('hidden');
-        map.getView().fit(ext, {padding: [50, 50, 50, 50], duration: 500});
     } else {
         actionButtons.classList.add('hidden');
+    }
+    
+    if ((currentOrigin && currentDestination && !isNavigating) || isNavigating) {
+        document.getElementById('btn-my-location-fab').classList.add('lifted');
+    } else {
+        document.getElementById('btn-my-location-fab').classList.remove('lifted');
     }
 }
 
@@ -625,6 +638,20 @@ function startNavMode() {
     totalAwayTimeMs = 0;
     lastPauseTime = null;
     
+    if (currentOrigin && currentDestination) {
+        fetch('/api/v1/webapp/history/route', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': tg.initData
+            },
+            body: JSON.stringify({
+                origin: currentOrigin,
+                destination: currentDestination
+            })
+        }).then(() => loadRecentRoutes()).catch(e => console.error(e));
+    }
+    
     document.getElementById('screen-search').classList.remove('active');
     document.getElementById('screen-navigation').classList.remove('hidden');
     document.getElementById('screen-navigation').classList.add('active');
@@ -807,9 +834,9 @@ function handlePositionUpdate(position) {
         
         if (navStartTime) {
             const totalMs = Date.now() - navStartTime;
-            totalTimeMin = Math.max(1, Math.ceil(totalMs / 60000));
-            awayTimeMin = Math.ceil(totalAwayTimeMs / 60000);
-            displayTimeMin = Math.max(1, Math.ceil((totalMs - totalAwayTimeMs) / 60000));
+            totalTimeMin = Math.max(1, Math.round(totalMs / 60000));
+            awayTimeMin = Math.round(totalAwayTimeMs / 60000);
+            displayTimeMin = Math.max(0, totalTimeMin - awayTimeMin);
         }
         
         fetch('/api/v1/webapp/trip-completed', {
@@ -900,14 +927,15 @@ function handlePositionUpdate(position) {
     
     const now = Date.now();
     
-    // Periodic Rerouting (Every 3 minutes)
-    if (now - lastPeriodicRerouteTime > 180000 && minDistance <= 50) {
+    // Periodic Rerouting (Every 30 seconds)
+    if (now - lastPeriodicRerouteTime > 30000 && minDistance <= 50) {
         lastPeriodicRerouteTime = now;
         currentOrigin = {
             name: "Vị trí hiện tại",
             lat: latitude,
             lng: longitude
         };
+        showToast("🔄 Đang tính lại định kỳ (30s)...");
         // Background reroute, no loading screen, preserve traveled path
         calculateRoute(true, true);
     }
@@ -1199,6 +1227,7 @@ document.getElementById('btn-rescue-gmaps').addEventListener('click', () => {
 const STATE_KEY = 'sgn_route_state';
 
 function saveState() {
+    if (!currentOrigin || !currentDestination || !currentRouteGeoJSON) return;
     try {
         const state = {
             currentOrigin,

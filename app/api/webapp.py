@@ -65,6 +65,16 @@ async def get_recent_routes(user: dict = Depends(get_current_user)):
     routes = await HistoryService.get_recent_routes(user_id)
     return {"status": "ok", "routes": routes}
 
+@router.post("/history/route")
+async def save_recent_route(payload: dict, user: dict = Depends(get_current_user)):
+    """Save a route to history when user starts navigation explicitly"""
+    user_id = user["id"]
+    origin = payload.get("origin")
+    destination = payload.get("destination")
+    if origin and destination:
+        await HistoryService.add_recent_route(user_id, origin, destination)
+    return {"status": "ok"}
+
 @router.post("/history/location")
 async def save_location(location: dict, user: dict = Depends(get_current_user)):
     """Save a single location when user searches for it"""
@@ -181,18 +191,19 @@ async def trip_completed(payload: dict, request: Request, user: dict = Depends(g
     
     telegram_bot = request.app.state.telegram_bot
     text = (
-        f"🏁 <b>Chuyến đi hoàn tất lúc {current_time}!</b>\n"
-        f"📍 Từ: {origin_name}\n"
-        f"🎯 Đến: {destination_name}\n\n"
-        f"📊 <b>Thống kê chuyến đi:</b>\n"
-        f"🛣 Quãng đường: {distance_km} km\n"
-        f"⏱ Tổng thời gian: {total_time} phút{dev_text}\n"
-        f"⚡ Vận tốc trung bình: {avg_speed} km/h\n\n"
-        f"📱 <b>Thông tin thêm:</b>\n"
-        f"📺 Thời gian hiển thị bản đồ: {display_time} phút\n"
+        f"<b>✅ Chuyến đi hoàn tất ({current_time})</b>\n\n"
+        f"<b>Lộ trình:</b>\n"
+        f"• Từ: {origin_name}\n"
+        f"• Đến: {destination_name}\n\n"
+        f"<b>Thống kê chuyến đi:</b>\n"
+        f"• Quãng đường: {distance_km} km\n"
+        f"• Tổng thời gian: {total_time} phút{dev_text}\n"
+        f"• Vận tốc trung bình: {avg_speed} km/h\n\n"
+        f"<b>Chi tiết ứng dụng:</b>\n"
+        f"• Thời gian hiển thị bản đồ: {display_time} phút\n"
     )
     if away_time >= 1:
-        text += f"💤 Thời gian chạy ngầm/tắt app: {away_time} phút\n"
+        text += f"• Thời gian chạy ngầm/tắt app: {away_time} phút\n"
     
     try:
         await telegram_bot.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
