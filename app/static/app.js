@@ -557,9 +557,11 @@ function handleRouteResult(result, startNavigation, isReroute = false) {
         }
     }
     
-    if (!isNavigating) {
+    if (!startNavigation && !isNavigating) {
+        // Only fit view when previewing route
         map.getView().fit(routeSource.getExtent(), {padding: [30, 30, 30, 30], duration: 500});
-    } else {
+    } else if (isNavigating) {
+        // During reroute, re-center on user
         isFollowing = true;
         if (globalLocationMarker.getPosition()) {
             map.getView().animate({center: globalLocationMarker.getPosition(), zoom: 17, duration: 500});
