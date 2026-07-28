@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SGN Route</title>
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- OpenLayers CSS -->
     <link rel="stylesheet" href="https://unpkg.com/ol@9.2.4/ol.css"/>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -19,27 +21,26 @@
 
     <!-- UI Overlay: Screen 1 (Search & Plan) -->
     <div id="screen-search" class="ui-overlay active">
-        <div class="search-panel glass-panel">
+        <div class="search-panel soft-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h1 class="app-title" style="margin-bottom: 0;">📍 SGN Route</h1>
+                <h1 class="app-title" style="margin-bottom: 0;"><i class="ph-fill ph-map-pin" style="color: var(--accent-primary);"></i> SGN Route</h1>
                 <div>
-                    <button id="btn-toggle-search" style="background: transparent; border: none; font-size: 20px; cursor: pointer; color: var(--text-main); margin-right: 10px;">🔽</button>
-                    <button id="btn-theme-toggle" style="background: transparent; border: none; font-size: 20px; cursor: pointer; color: var(--text-main);">🌓</button>
+                    <button id="btn-toggle-search" style="background: transparent; border: none; font-size: 20px; cursor: pointer; color: var(--text-main);"><i class="ph-bold ph-caret-down"></i></button>
                 </div>
             </div>
             
             <div class="input-group">
-                <div class="input-icon">🟢</div>
+                <div class="input-icon" style="color: #10b981;"><i class="ph-fill ph-navigation-arrow"></i></div>
                 <input type="text" id="input-origin" placeholder="Chọn điểm đi..." autocomplete="off">
-                <div class="clear-btn" onclick="clearInput('origin')">×</div>
+                <div class="clear-btn" onclick="clearInput('origin')"><i class="ph-bold ph-x"></i></div>
             </div>
             
             <div class="route-line"></div>
             
             <div class="input-group">
-                <div class="input-icon">🔴</div>
+                <div class="input-icon" style="color: #ef4444;"><i class="ph-fill ph-map-pin"></i></div>
                 <input type="text" id="input-destination" placeholder="Chọn điểm đến..." autocomplete="off">
-                <div class="clear-btn" onclick="clearInput('destination')">×</div>
+                <div class="clear-btn" onclick="clearInput('destination')"><i class="ph-bold ph-x"></i></div>
             </div>
 
             <!-- Autocomplete Suggestions Box -->
@@ -57,13 +58,13 @@
             
             <!-- Route Info (Shown after clicking Đường đi) -->
             <div id="route-info-box" class="route-info-box hidden" style="margin-top: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-main); padding: 12px; border-radius: 12px; border: 1px solid var(--border-color);">
                     <div>
                         <div style="font-size: 24px; font-weight: 700; color: #10b981;" id="info-eta">-- phút</div>
                         <div style="font-size: 14px; color: var(--text-muted);" id="info-dist">-- km</div>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button id="btn-cancel-route" class="btn" style="padding: 10px; font-size: 14px; flex: 0 0 auto; background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.5);">✖️</button>
+                        <button id="btn-cancel-route" class="btn" style="padding: 10px; font-size: 14px; flex: 0 0 auto; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);"><i class="ph-bold ph-x"></i></button>
                         <button id="btn-start-nav-from-info" class="btn btn-primary" style="padding: 10px 20px; font-size: 14px; flex: 0 1 auto;">Dẫn đường</button>
                     </div>
                 </div>
@@ -71,10 +72,10 @@
         </div>
 
         <!-- FAB Location Button -->
-        <button id="btn-my-location-fab" class="fab-btn hidden">📍</button>
+        <button id="btn-my-location-fab" class="fab-btn hidden"><i class="ph-fill ph-crosshair"></i></button>
 
         <!-- Action Buttons (Hidden until origin and destination are set) -->
-        <div id="action-buttons" class="action-buttons hidden glass-panel">
+        <div id="action-buttons" class="action-buttons hidden soft-card">
             <button id="btn-show-route" class="btn btn-secondary">Đường đi</button>
             <button id="btn-navigate" class="btn btn-primary">Dẫn đường</button>
         </div>
@@ -82,22 +83,22 @@
 
     <!-- UI Overlay: Screen 2 (Navigation) -->
     <div id="screen-navigation" class="ui-overlay hidden">
-        <div class="nav-footer glass-panel">
+        <div class="nav-footer soft-card">
             <div class="nav-stats">
                 <div class="stat-time" id="nav-eta">-- phút</div>
                 <div class="stat-dist" id="nav-total-dist">-- km</div>
             </div>
-            <button id="btn-sim-mode" class="btn-icon">🎮 Giả lập</button>
-            <button id="btn-recenter" class="btn-icon">📍 Ghim</button>
-            <button id="btn-rescue-gmaps" class="btn-icon btn-rescue">🚨 Cứu hộ</button>
-            <button id="btn-stop-nav" class="btn-icon">✖️ Thoát</button>
+            <button id="btn-sim-mode" class="btn-icon"><i class="ph-bold ph-game-controller"></i> Giả lập</button>
+            <button id="btn-recenter" class="btn-icon"><i class="ph-fill ph-crosshair"></i> Ghim</button>
+            <button id="btn-rescue-gmaps" class="btn-icon btn-rescue"><i class="ph-bold ph-warning"></i> Cứu hộ</button>
+            <button id="btn-stop-nav" class="btn-icon"><i class="ph-bold ph-x"></i> Thoát</button>
         </div>
     </div>
 
     <!-- UI Overlay: Map Picker -->
     <div id="map-picker-ui" class="hidden">
-        <div class="crosshair">+</div>
-        <div class="picker-footer glass-panel">
+        <div class="crosshair"><i class="ph-bold ph-crosshair" style="font-size: 24px;"></i></div>
+        <div class="picker-footer soft-card">
             <button id="btn-confirm-location" class="btn btn-primary">Xác nhận</button>
             <button id="btn-cancel-picker" class="btn btn-secondary">Hủy</button>
         </div>

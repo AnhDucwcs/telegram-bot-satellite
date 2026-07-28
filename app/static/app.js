@@ -126,7 +126,34 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-toggle-search').addEventListener('click', (e) => {
         const panel = document.querySelector('.search-panel');
         panel.classList.toggle('collapsed');
-        e.target.textContent = panel.classList.contains('collapsed') ? '▶️' : '🔽';
+        // Because we use Phosphor icons, we need to toggle the icon class
+        const icon = e.target.querySelector('i') || e.target;
+        if (panel.classList.contains('collapsed')) {
+            icon.className = 'ph-bold ph-caret-down';
+        } else {
+            icon.className = 'ph-bold ph-caret-up';
+        }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (isNavigating) {
+            if (document.hidden) {
+                if (watchId !== null) {
+                    navigator.geolocation.clearWatch(watchId);
+                    watchId = null;
+                }
+                releaseWakeLock();
+            } else {
+                if ("geolocation" in navigator && watchId === null) {
+                    watchId = navigator.geolocation.watchPosition(handlePositionUpdate, (err) => console.warn(err), {
+                        enableHighAccuracy: true,
+                        maximumAge: 0,
+                        timeout: 5000
+                    });
+                }
+                requestWakeLock();
+            }
+        }
     });
 });
 
@@ -529,6 +556,9 @@ function handleRouteResult(result, startNavigation) {
         }
     }
     
+    totalRouteTimeMin = result.estimated_time_min || 0;
+    totalRouteDistMeters = (result.distance_km || 0) * 1000;
+    
     const etaText = result.estimated_time_min ? `${Math.ceil(result.estimated_time_min)} phút` : '-- phút';
     const distText = result.distance_km ? `${result.distance_km.toFixed(1)} km` : '-- km';
     
@@ -562,6 +592,8 @@ let isRerouting = false;
 let isNavigating = false;
 let lastRerouteTime = 0;
 let wakeLock = null;
+let totalRouteTimeMin = 0;
+let totalRouteDistMeters = 0;
 
 async function requestWakeLock() {
     try {
@@ -784,13 +816,11 @@ function handlePositionUpdate(position) {
     }
     
     // Dynamic ETA & Distance calculation
-    if (routeSegments.length > 0) {
-        let remainingTimeMin = 0;
+    if (routeSegments.length > 0 && totalRouteDistMeters > 0) {
         let remainingDistMeters = 0;
         
-        // Add time and distance for all upcoming full segments
+        // Add distance for all upcoming full segments
         for (let i = closestIndex + 1; i < routeSegments.length; i++) {
-            remainingTimeMin += routeSegments[i].timeMin;
             remainingDistMeters += turf.distance(turf.point(routeSegments[i].start), turf.point(routeSegments[i].end), {units: 'meters'});
         }
         
@@ -804,9 +834,11 @@ function handlePositionUpdate(position) {
         if (segLenMeters > 0) {
             fraction = distToEndMeters / segLenMeters;
             fraction = Math.min(Math.max(fraction, 0), 1); // Clamp between 0 and 1
-            remainingTimeMin += currentSeg.timeMin * fraction;
             remainingDistMeters += segLenMeters * fraction;
         }
+        
+        // Linear Interpolation for ETA
+        let remainingTimeMin = (remainingDistMeters / totalRouteDistMeters) * totalRouteTimeMin;
         
         // Update UI
         const etaText = `${Math.ceil(remainingTimeMin)} phút`;
@@ -1101,6 +1133,8 @@ function saveState() {
             isNavigating,
             etaText: document.getElementById('nav-eta').textContent,
             distText: document.getElementById('nav-total-dist').textContent,
+            totalRouteTimeMin,
+            totalRouteDistMeters,
             timestamp: Date.now()
         };
         localStorage.setItem(STATE_KEY, JSON.stringify(state));
@@ -1124,8 +1158,8 @@ function restoreState() {
         
         const state = JSON.parse(raw);
         
-        // Ignore state older than 2 hours
-        if (Date.now() - state.timestamp > 2 * 60 * 60 * 1000) {
+        // Ignore state older than 1 hour (TTL)
+        if (Date.now() - state.timestamp > 1 * 60 * 60 * 1000) {
             clearSavedState();
             return false;
         }
@@ -1178,6 +1212,9 @@ function restoreState() {
                 document.getElementById('nav-total-dist').textContent = state.distText;
                 document.getElementById('info-dist').textContent = state.distText;
             }
+            
+            if (state.totalRouteTimeMin !== undefined) totalRouteTimeMin = state.totalRouteTimeMin;
+            if (state.totalRouteDistMeters !== undefined) totalRouteDistMeters = state.totalRouteDistMeters;
             
             isFollowing = true;
             initRouteSegments();
