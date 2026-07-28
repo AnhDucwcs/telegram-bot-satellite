@@ -933,15 +933,14 @@ function handlePositionUpdate(position) {
     
     const now = Date.now();
     
-    // Periodic Rerouting (Every 30 seconds)
-    if (now - lastPeriodicRerouteTime > 30000 && minDistance <= 50) {
+    // Periodic Rerouting (Every 10 minutes)
+    if (now - lastPeriodicRerouteTime > 600000 && minDistance <= 50) {
         lastPeriodicRerouteTime = now;
         currentOrigin = {
             name: "Vị trí hiện tại",
             lat: latitude,
             lng: longitude
         };
-        showToast("🔄 Đang tính lại định kỳ (30s)...");
         // Background reroute, no loading screen, preserve traveled path
         calculateRoute(true, true);
     }
@@ -1313,6 +1312,7 @@ function restoreState() {
             // Restore UI to Route Info mode (ready to resume)
             // DO NOT automatically call watchPosition to avoid permission prompts without user gesture
             actionButtons.classList.add('hidden');
+            recentRoutesBox.classList.add('hidden');
             document.getElementById('route-info-box').classList.remove('hidden');
             
             if (state.etaText) {
