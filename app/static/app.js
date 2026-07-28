@@ -80,7 +80,6 @@ const loadingScreen = document.getElementById('loading-screen');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    initTheme();
     loadRecentRoutes();
     setupInputs();
     
@@ -157,20 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-function initTheme() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
-        document.body.classList.add('light-mode');
-    } else if (!savedTheme && tg.colorScheme === 'light') {
-        document.body.classList.add('light-mode');
-    }
-    
-    document.getElementById('btn-theme-toggle').addEventListener('click', () => {
-        document.body.classList.toggle('light-mode');
-        const isLight = document.body.classList.contains('light-mode');
-        localStorage.setItem('theme', isLight ? 'light' : 'dark');
-    });
-}
+// initTheme removed as part of Daytime Minimalist redesign
 
 function setupInputs() {
     inputOrigin.addEventListener('focus', () => handleInputFocus('origin'));
