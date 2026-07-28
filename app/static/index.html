@@ -60,12 +60,12 @@
             <div id="route-info-box" class="route-info-box hidden" style="margin-top: 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-main); padding: 12px; border-radius: 12px; border: 1px solid var(--border-color);">
                     <div>
-                        <div style="font-size: 24px; font-weight: 700; color: #10b981;" id="info-eta">-- phút</div>
-                        <div style="font-size: 14px; color: var(--text-muted);" id="info-dist">-- km</div>
+                        <div style="font-size: 24px; font-weight: 700; color: #059669;" id="info-eta">-- phút</div>
+                        <div style="font-size: 14px; color: var(--text-muted); font-weight: 500; margin-top: 2px;" id="info-dist">-- km</div>
                     </div>
-                    <div style="display: flex; gap: 8px;">
-                        <button id="btn-cancel-route" class="btn" style="padding: 10px; font-size: 14px; flex: 0 0 auto; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);"><i class="ph-bold ph-x"></i></button>
-                        <button id="btn-start-nav-from-info" class="btn btn-primary" style="padding: 10px 20px; font-size: 14px; flex: 0 1 auto;">Dẫn đường</button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button id="btn-start-nav-from-info" class="btn btn-primary" style="padding: 12px 24px; font-size: 15px; border-radius: 28px;">Dẫn đường</button>
+                        <button id="btn-cancel-route" class="circle-btn btn-danger" style="width: 48px; height: 48px;"><i class="ph-bold ph-x"></i></button>
                     </div>
                 </div>
             </div>
@@ -95,7 +95,7 @@
                     <div class="stat-dist" id="nav-total-dist">-- km</div>
                 </div>
                 <div class="nav-actions">
-                    <button id="btn-recenter" class="btn-icon circle-btn"><i class="ph-fill ph-crosshair"></i></button>
+                    <button id="btn-recenter" class="btn-icon circle-btn btn-recenter-nav"><i class="ph-bold ph-crosshair"></i></button>
                     <button id="btn-stop-nav" class="btn-icon circle-btn btn-danger"><i class="ph-bold ph-x"></i></button>
                 </div>
             </div>

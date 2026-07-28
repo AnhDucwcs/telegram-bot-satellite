@@ -303,6 +303,7 @@ input:not(:placeholder-shown) + .clear-btn {
     left: 16px;
     right: 16px;
     z-index: 100;
+    pointer-events: none; /* Let clicks pass through empty spaces */
 }
 
 /* FAB Menu Button */
@@ -323,6 +324,7 @@ input:not(:placeholder-shown) + .clear-btn {
     color: var(--text-main);
     cursor: pointer;
     transition: transform 0.1s, background 0.2s;
+    pointer-events: auto; /* Enable clicks on the button */
 }
 .fab-menu:active {
     transform: scale(0.9);
@@ -342,6 +344,7 @@ input:not(:placeholder-shown) + .clear-btn {
     box-shadow: 0 10px 25px rgba(0,0,0,0.1);
     transform-origin: bottom right;
     animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto; /* Enable clicks inside popup */
 }
 .nav-popup-menu.hidden {
     display: none;
@@ -380,6 +383,7 @@ input:not(:placeholder-shown) + .clear-btn {
     margin: 0;
     padding: 16px 20px;
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: auto; /* Enable clicks inside footer */
 }
 
 @keyframes slideUp {
@@ -395,7 +399,7 @@ input:not(:placeholder-shown) + .clear-btn {
     font-size: 36px; /* Massive typography */
     font-weight: 800;
     letter-spacing: -0.02em;
-    color: #171717; 
+    color: #059669; /* Green color requested by user */
     line-height: 1.1;
 }
 
@@ -423,10 +427,19 @@ input:not(:placeholder-shown) + .clear-btn {
     font-size: 24px;
     cursor: pointer;
     transition: transform 0.1s, box-shadow 0.2s;
+    background: #F1F5F9;
+    color: var(--text-main);
 }
 
 .circle-btn:active {
     transform: scale(0.92);
+}
+
+.btn-recenter-nav {
+    background: var(--bg-panel);
+    color: var(--accent-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 .btn-primary {

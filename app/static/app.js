@@ -137,19 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('visibilitychange', () => {
         if (isNavigating) {
             if (document.hidden) {
-                if (watchId !== null) {
-                    navigator.geolocation.clearWatch(watchId);
-                    watchId = null;
-                }
                 releaseWakeLock();
             } else {
-                if ("geolocation" in navigator && watchId === null) {
-                    watchId = navigator.geolocation.watchPosition(handlePositionUpdate, (err) => console.warn(err), {
-                        enableHighAccuracy: true,
-                        maximumAge: 0,
-                        timeout: 5000
-                    });
-                }
                 requestWakeLock();
             }
         }
