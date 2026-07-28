@@ -27,6 +27,10 @@ let currentOrigin = null;
 let currentDestination = null;
 let currentRouteGeoJSON = null;
 
+let navStartTime = null;
+let totalAwayTimeMs = 0;
+let lastPauseTime = null;
+
 // Overlays (Markers)
 function createOverlay(color, id, isDot = false) {
     const el = document.createElement('div');
@@ -135,6 +139,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            lastPauseTime = Date.now();
+            saveState();
+        } else {
+            if (lastPauseTime && isNavigating) {
+                totalAwayTimeMs += (Date.now() - lastPauseTime);
+                lastPauseTime = null;
+            }
+        }
+        
         if (isNavigating) {
             if (document.hidden) {
                 releaseWakeLock();
@@ -327,16 +341,9 @@ function selectLocation(loc, type) {
 }
 
 function checkAndShowButtons() {
-    if (currentOrigin && currentDestination) {
+    if (currentOrigin && currentDestination && !isNavigating) {
         actionButtons.classList.remove('hidden');
-        recentRoutesBox.classList.add('hidden');
         document.getElementById('route-info-box').classList.add('hidden');
-        
-        // Fit bounds for OpenLayers
-        const ext = ol.extent.boundingExtent([
-            ol.proj.fromLonLat([currentOrigin.lng, currentOrigin.lat]),
-            ol.proj.fromLonLat([currentDestination.lng, currentDestination.lat])
-        ]);
         map.getView().fit(ext, {padding: [50, 50, 50, 50], duration: 500});
     } else {
         actionButtons.classList.add('hidden');
@@ -614,11 +621,16 @@ function startNavMode() {
     if (isNavigating) return;
     isNavigating = true;
     
+    navStartTime = Date.now();
+    totalAwayTimeMs = 0;
+    lastPauseTime = null;
+    
     document.getElementById('screen-search').classList.remove('active');
     document.getElementById('screen-navigation').classList.remove('hidden');
     document.getElementById('screen-navigation').classList.add('active');
     document.querySelector('.search-panel').classList.add('hidden');
     document.getElementById('btn-my-location-fab').classList.add('hidden');
+    document.getElementById('action-buttons').classList.add('hidden');
     
     requestWakeLock();
     
@@ -626,11 +638,12 @@ function startNavMode() {
     
     isFollowing = true;
     
-    if (globalLocationMarker.getPosition()) {
-        map.getView().animate({center: globalLocationMarker.getPosition(), zoom: 17, duration: 500});
-    }
+    initRouteSegments();
     
     initRouteSegments();
+    
+    centerAndRotateMap();
+    
     
     if ("geolocation" in navigator) {
         watchId = navigator.geolocation.watchPosition(handlePositionUpdate, (err) => console.warn(err), {
@@ -781,6 +794,41 @@ function handlePositionUpdate(position) {
         // Reached destination!
         showToast("Chúc mừng! Bạn đã đến đích.", true);
         tg.HapticFeedback.notificationOccurred('success');
+        
+        // Gửi thống kê chuyến đi qua Telegram (Background)
+        const originName = currentOrigin ? (currentOrigin.name || "Vị trí bắt đầu") : "Vị trí bắt đầu";
+        const destName = currentDestination ? (currentDestination.name || "Vị trí kết thúc") : "Vị trí kết thúc";
+        const distKm = (totalRouteDistMeters / 1000).toFixed(1);
+        const estimatedTimeMin = Math.ceil(totalRouteTimeMin);
+        
+        let totalTimeMin = 0;
+        let awayTimeMin = 0;
+        let displayTimeMin = 0;
+        
+        if (navStartTime) {
+            const totalMs = Date.now() - navStartTime;
+            totalTimeMin = Math.max(1, Math.ceil(totalMs / 60000));
+            awayTimeMin = Math.ceil(totalAwayTimeMs / 60000);
+            displayTimeMin = Math.max(1, Math.ceil((totalMs - totalAwayTimeMs) / 60000));
+        }
+        
+        fetch('/api/v1/webapp/trip-completed', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': tg.initData
+            },
+            body: JSON.stringify({
+                origin_name: originName,
+                destination_name: destName,
+                distance_km: distKm,
+                estimated_time_min: estimatedTimeMin,
+                total_time_min: totalTimeMin,
+                away_time_min: awayTimeMin,
+                display_time_min: displayTimeMin
+            })
+        }).catch(err => console.error("Error sending trip stats:", err));
+
         stopNavMode();
         return;
     }
@@ -935,7 +983,7 @@ document.addEventListener('click', () => {
         navPopupMenu.classList.add('hidden');
     }
 });
-document.getElementById('btn-recenter').addEventListener('click', () => {
+function centerAndRotateMap() {
     isFollowing = true;
     if (globalLocationMarker.getPosition()) {
         let bearingRad = 0;
@@ -957,7 +1005,9 @@ document.getElementById('btn-recenter').addEventListener('click', () => {
             duration: 500
         });
     }
-});
+}
+
+document.getElementById('btn-recenter').addEventListener('click', centerAndRotateMap);
 
 // Simulator
 let simActive = false;
@@ -1159,6 +1209,8 @@ function saveState() {
             distText: document.getElementById('nav-total-dist').textContent,
             totalRouteTimeMin,
             totalRouteDistMeters,
+            navStartTime,
+            totalAwayTimeMs,
             timestamp: Date.now()
         };
         localStorage.setItem(STATE_KEY, JSON.stringify(state));
@@ -1182,10 +1234,18 @@ function restoreState() {
         
         const state = JSON.parse(raw);
         
-        // Ignore state older than 1 hour (TTL)
-        if (Date.now() - state.timestamp > 1 * 60 * 60 * 1000) {
+        // Ignore state older than 30 minutes (TTL)
+        if (Date.now() - state.timestamp > 30 * 60 * 1000) {
             clearSavedState();
             return false;
+        }
+        
+        // Restore time tracking
+        if (state.navStartTime) {
+            navStartTime = state.navStartTime;
+            totalAwayTimeMs = state.totalAwayTimeMs || 0;
+            const away = Date.now() - state.timestamp;
+            totalAwayTimeMs += away;
         }
         
         // Restore origin & destination
@@ -1215,57 +1275,34 @@ function restoreState() {
         }
         
         if (state.isNavigating && state.currentRouteGeoJSON) {
-            // Jump straight into navigation mode
-            // Don't call startNavMode() directly because it checks isNavigating
-            isNavigating = true;
+            // Restore UI to Route Info mode (ready to resume)
+            // DO NOT automatically call watchPosition to avoid permission prompts without user gesture
+            actionButtons.classList.add('hidden');
+            document.getElementById('route-info-box').classList.remove('hidden');
             
-            document.getElementById('screen-search').classList.remove('active');
-            document.getElementById('screen-navigation').classList.remove('hidden');
-            document.getElementById('screen-navigation').classList.add('active');
-            document.querySelector('.search-panel').classList.add('hidden');
-            document.getElementById('btn-my-location-fab').classList.add('hidden');
-            
-            requestWakeLock();
-            
-            // Restore ETA and distance
             if (state.etaText) {
-                document.getElementById('nav-eta').textContent = state.etaText;
                 document.getElementById('info-eta').textContent = state.etaText;
+                document.getElementById('nav-eta').textContent = state.etaText;
             }
             if (state.distText) {
-                document.getElementById('nav-total-dist').textContent = state.distText;
                 document.getElementById('info-dist').textContent = state.distText;
+                document.getElementById('nav-total-dist').textContent = state.distText;
             }
             
             if (state.totalRouteTimeMin !== undefined) totalRouteTimeMin = state.totalRouteTimeMin;
             if (state.totalRouteDistMeters !== undefined) totalRouteDistMeters = state.totalRouteDistMeters;
             
-            isFollowing = true;
-            initRouteSegments();
-            
-            // Set initial zoom and center to the start of the route so it doesn't look like route planning mode
-            if (routeSegments.length > 0) {
-                const startProj = ol.proj.fromLonLat(routeSegments[0].start);
-                map.getView().animate({
-                    center: startProj,
-                    zoom: 17,
-                    duration: 500
-                });
+            // Set initial zoom and center to the start of the route
+            if (currentRouteGeoJSON && currentRouteGeoJSON.features) {
+                let coords = currentRouteGeoJSON.features[0].geometry.coordinates;
+                if (coords.length > 0) {
+                    const startProj = ol.proj.fromLonLat(coords[0]);
+                    map.getView().animate({ center: startProj, zoom: 17, duration: 500 });
+                }
             }
+
             
-            if ("geolocation" in navigator) {
-                watchId = navigator.geolocation.watchPosition(handlePositionUpdate, (err) => console.warn(err), {
-                    enableHighAccuracy: true,
-                    maximumAge: 0,
-                    timeout: 5000
-                });
-            }
-            
-            map.on('pointerdrag', () => {
-                isFollowing = false;
-            });
-            
-            showToast('Đã khôi phục phiên dẫn đường');
+            showToast('Nhấn Dẫn đường để tiếp tục phiên của bạn');
             return true;
         }
         

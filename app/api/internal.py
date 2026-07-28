@@ -55,7 +55,9 @@ async def receive_result(request: Request):
 
                 text = f"Đã tìm thấy lộ trình: {origin_name} ➔ {destination_name}"
                 if distance_km is not None and estimated_time_min is not None:
-                    text += f"\nQuãng đường: {distance_km} km\nThời gian dự kiến: {estimated_time_min} phút"
+                    dist = round(distance_km, 2)
+                    time = round(estimated_time_min, 2)
+                    text += f"\nQuãng đường: {dist} km\nThời gian dự kiến: {time} phút"
 
                 try:
                     await telegram_bot.bot.send_message(chat_id=chat_id, text=text)

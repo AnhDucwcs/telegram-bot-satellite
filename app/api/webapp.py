@@ -141,3 +141,61 @@ async def get_job_status(job_id: str, request: Request, user: dict = Depends(get
         return {"status": "completed", "result": job_results[job_id]}
     
     return {"status": "pending"}
+
+@router.post("/trip-completed")
+async def trip_completed(payload: dict, request: Request, user: dict = Depends(get_current_user)):
+    """
+    Send trip statistics to user via Telegram upon destination reached.
+    """
+    user_id = user["id"]
+    chat_id = int(user_id) if user_id else None
+    
+    if not chat_id:
+        return {"status": "error", "message": "No valid user id"}
+        
+    origin_name = payload.get("origin_name", "Vị trí bắt đầu")
+    destination_name = payload.get("destination_name", "Vị trí kết thúc")
+    distance_km = payload.get("distance_km", "0")
+    
+    estimated_time = payload.get("estimated_time_min", 0)
+    total_time = payload.get("total_time_min", 0)
+    away_time = payload.get("away_time_min", 0)
+    display_time = payload.get("display_time_min", 0)
+    
+    # Calculate speed and deviation
+    import datetime
+    current_time = datetime.datetime.now().strftime("%H:%M")
+    
+    dev_text = ""
+    if total_time < estimated_time:
+        dev_text = f" (Nhanh hơn dự kiến {estimated_time - total_time} phút)"
+    elif total_time > estimated_time:
+        dev_text = f" (Chậm hơn dự kiến {total_time - estimated_time} phút)"
+    else:
+        dev_text = " (Đúng như dự kiến)"
+        
+    try:
+        avg_speed = round(float(distance_km) / (total_time / 60), 1) if total_time > 0 else 0
+    except:
+        avg_speed = 0
+    
+    telegram_bot = request.app.state.telegram_bot
+    text = (
+        f"🏁 <b>Chuyến đi hoàn tất lúc {current_time}!</b>\n"
+        f"📍 Từ: {origin_name}\n"
+        f"🎯 Đến: {destination_name}\n\n"
+        f"📊 <b>Thống kê chuyến đi:</b>\n"
+        f"🛣 Quãng đường: {distance_km} km\n"
+        f"⏱ Tổng thời gian: {total_time} phút{dev_text}\n"
+        f"⚡ Vận tốc trung bình: {avg_speed} km/h\n\n"
+        f"📱 <b>Thông tin thêm:</b>\n"
+        f"📺 Thời gian hiển thị bản đồ: {display_time} phút\n"
+    )
+    if away_time >= 1:
+        text += f"💤 Thời gian chạy ngầm/tắt app: {away_time} phút\n"
+    
+    try:
+        await telegram_bot.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

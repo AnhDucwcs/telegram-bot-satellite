@@ -526,6 +526,10 @@ input:not(:placeholder-shown) + .clear-btn {
     background: #F1F5F9;
 }
 
+.fab-btn.lifted {
+    bottom: 100px;
+}
+
 /* Rescue Button */
 .btn-rescue {
     background: rgba(239, 68, 68, 0.1) !important;
