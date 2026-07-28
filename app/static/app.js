@@ -355,8 +355,8 @@ function checkAndShowButtons() {
     } else {
         actionButtons.classList.add('hidden');
     }
-    
-    if ((currentOrigin && currentDestination && !isNavigating) || isNavigating) {
+    const actionVisible = !actionButtons.classList.contains('hidden');
+    if (actionVisible) {
         document.getElementById('btn-my-location-fab').classList.add('lifted');
     } else {
         document.getElementById('btn-my-location-fab').classList.remove('lifted');
@@ -588,6 +588,7 @@ function handleRouteResult(result, startNavigation, isReroute = false) {
     } else {
         actionButtons.classList.add('hidden');
         document.getElementById('route-info-box').classList.remove('hidden');
+        document.getElementById('btn-my-location-fab').classList.remove('lifted');
     }
     
     // Persist state after route is loaded
@@ -697,8 +698,7 @@ function initRouteSegments(isReroute = false) {
     
     if (!isReroute) {
         traveledPathCoords = [];
-        if (globalPassedFeature) routeSource.removeFeature(globalPassedFeature);
-        if (globalRemainingFeature) routeSource.removeFeature(globalRemainingFeature);
+        routeSource.clear(); // Wipe the preview GeoJSON from the map
         
         globalPassedFeature = new ol.Feature({ geometry: new ol.geom.LineString([]) });
         globalPassedFeature.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#9ca3af', width: 6 }) }));
@@ -734,6 +734,10 @@ function initRouteSegments(isReroute = false) {
                     timeMin: edgeTimes[i] || 0 // Store edge time (minutes) or default to 0
                 });
             }
+        }
+        
+        if (routeSegments.length > 0) {
+            updateRouteDisplay(0, 0); // Immediately draw the route
         }
     } catch (e) {
         console.error("Lỗi parse GeoJSON:", e);
