@@ -95,6 +95,7 @@
                     <div class="stat-dist" id="nav-total-dist">-- km</div>
                 </div>
                 <div class="nav-actions">
+                    <button id="btn-report-traffic" class="btn-icon circle-btn btn-warning"><i class="ph-bold ph-warning-octagon"></i></button>
                     <button id="btn-recenter" class="btn-icon circle-btn btn-recenter-nav"><i class="ph-bold ph-crosshair"></i></button>
                     <button id="btn-stop-nav" class="btn-icon circle-btn btn-danger"><i class="ph-bold ph-x"></i></button>
                 </div>
@@ -119,6 +120,19 @@
 
     <!-- Notification Toast -->
     <div id="toast" class="toast hidden">Lệch tuyến! Đang tính lại đường...</div>
+
+    <!-- Traffic Report Modal -->
+    <div id="traffic-report-modal" class="modal-overlay hidden">
+        <div class="modal-content soft-card">
+            <h3>Báo cáo kẹt xe</h3>
+            <p>Mức độ kẹt xe tại vị trí của bạn?</p>
+            <div class="modal-actions-col">
+                <button class="btn btn-warning" onclick="submitTrafficReport('congested')">Đông đúc (Chậm)</button>
+                <button class="btn btn-danger" onclick="submitTrafficReport('gridlock')">Kẹt cứng (Đứng im)</button>
+                <button class="btn btn-secondary" onclick="closeTrafficReportModal()">Hủy</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Version Indicator -->
     <div id="app-version">v1.1.2</div>

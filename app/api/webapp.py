@@ -210,3 +210,33 @@ async def trip_completed(payload: dict, request: Request, user: dict = Depends(g
         return {"status": "ok"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@router.post("/report-traffic")
+async def report_traffic(payload: dict, request: Request, user: dict = Depends(get_current_user)):
+    """
+    Proxy API to report traffic jam to the routing engine.
+    """
+    user_id = user["id"]
+    lat = payload.get("lat")
+    lng = payload.get("lng")
+    severity = payload.get("severity")
+    
+    if lat is None or lng is None or not severity:
+        raise HTTPException(status_code=400, detail="Thiếu trường dữ liệu: lat, lng, severity")
+        
+    ai_client = request.app.state.ai_client
+    response = await ai_client.client.post(
+        f"{settings.AI_ENGINE_URL}/api/v1/report/",
+        json={
+            "user_id": str(user_id),
+            "lat": lat,
+            "lng": lng,
+            "severity": severity
+        },
+        headers={"x-internal-api-key": settings.INTERNAL_API_KEY}
+    )
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        raise HTTPException(status_code=response.status_code, detail=response.text)

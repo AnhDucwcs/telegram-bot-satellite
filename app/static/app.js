@@ -1368,3 +1368,60 @@ function restoreState() {
         return false;
     }
 }
+
+// ==========================================
+// Traffic Reporting
+// ==========================================
+
+document.getElementById('btn-report-traffic').addEventListener('click', () => {
+    document.getElementById('traffic-report-modal').classList.remove('hidden');
+});
+
+window.closeTrafficReportModal = function() {
+    document.getElementById('traffic-report-modal').classList.add('hidden');
+}
+
+window.submitTrafficReport = async function(severity) {
+    closeTrafficReportModal();
+    
+    // Require GPS coordinate
+    const pos = globalLocationMarker.getPosition();
+    if (!pos) {
+        showToast('Không lấy được vị trí hiện tại');
+        return;
+    }
+    
+    const lonlat = ol.proj.toLonLat(pos);
+    const lng = lonlat[0];
+    const lat = lonlat[1];
+    
+    try {
+        const res = await fetch('/api/v1/webapp/report-traffic', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': tg.initData
+            },
+            body: JSON.stringify({ lat, lng, severity })
+        });
+        
+        if (res.ok) {
+            showToast('Cảm ơn bạn đã báo cáo tuyến đường!');
+            tg.HapticFeedback.notificationOccurred('success');
+            // Request reroute since the graph has changed
+            setTimeout(() => {
+                if (isNavigating && !isRerouting) {
+                    showToast('Đang tính lại đường tránh kẹt xe...');
+                    calculateRoute(true, true);
+                }
+            }, 1000);
+        } else {
+            const err = await res.json();
+            showToast(err.detail || 'Lỗi khi gửi báo cáo');
+            tg.HapticFeedback.notificationOccurred('error');
+        }
+    } catch (e) {
+        showToast('Lỗi mạng khi gửi báo cáo');
+        console.error(e);
+    }
+}
