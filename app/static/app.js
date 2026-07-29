@@ -571,6 +571,13 @@ function handleRouteResult(result, startNavigation, isReroute = false) {
     totalRouteTimeMin = result.estimated_time_min || 0;
     totalRouteDistMeters = (result.distance_km || 0) * 1000;
     
+    if (!isReroute) {
+        initialOriginName = currentOrigin ? (currentOrigin.name || "Vị trí bắt đầu") : "Vị trí bắt đầu";
+        initialDestName = currentDestination ? (currentDestination.name || "Vị trí kết thúc") : "Vị trí kết thúc";
+        initialRouteTimeMin = totalRouteTimeMin;
+        initialRouteDistMeters = totalRouteDistMeters;
+    }
+    
     const etaText = result.estimated_time_min ? `${Math.ceil(result.estimated_time_min)} phút` : '-- phút';
     const distText = result.distance_km ? `${result.distance_km.toFixed(1)} km` : '-- km';
     
@@ -608,6 +615,10 @@ let lastRerouteTime = 0;
 let wakeLock = null;
 let totalRouteTimeMin = 0;
 let totalRouteDistMeters = 0;
+let initialOriginName = null;
+let initialDestName = null;
+let initialRouteTimeMin = 0;
+let initialRouteDistMeters = 0;
 let globalPassedFeature = null;
 let globalRemainingFeature = null;
 let traveledPathCoords = [];
@@ -829,10 +840,10 @@ function handlePositionUpdate(position) {
         tg.HapticFeedback.notificationOccurred('success');
         
         // Gửi thống kê chuyến đi qua Telegram (Background)
-        const originName = currentOrigin ? (currentOrigin.name || "Vị trí bắt đầu") : "Vị trí bắt đầu";
-        const destName = currentDestination ? (currentDestination.name || "Vị trí kết thúc") : "Vị trí kết thúc";
-        const distKm = (totalRouteDistMeters / 1000).toFixed(1);
-        const estimatedTimeMin = Math.ceil(totalRouteTimeMin);
+        const originName = initialOriginName || "Vị trí bắt đầu";
+        const destName = initialDestName || "Vị trí kết thúc";
+        const distKm = (initialRouteDistMeters / 1000).toFixed(1);
+        const estimatedTimeMin = Math.ceil(initialRouteTimeMin);
         
         let totalTimeMin = 0;
         let awayTimeMin = 0;
@@ -1243,6 +1254,10 @@ function saveState() {
             distText: document.getElementById('nav-total-dist').textContent,
             totalRouteTimeMin,
             totalRouteDistMeters,
+            initialOriginName,
+            initialDestName,
+            initialRouteTimeMin,
+            initialRouteDistMeters,
             navStartTime,
             totalAwayTimeMs,
             timestamp: Date.now()
@@ -1326,6 +1341,11 @@ function restoreState() {
             
             if (state.totalRouteTimeMin !== undefined) totalRouteTimeMin = state.totalRouteTimeMin;
             if (state.totalRouteDistMeters !== undefined) totalRouteDistMeters = state.totalRouteDistMeters;
+            
+            if (state.initialOriginName !== undefined) initialOriginName = state.initialOriginName;
+            if (state.initialDestName !== undefined) initialDestName = state.initialDestName;
+            if (state.initialRouteTimeMin !== undefined) initialRouteTimeMin = state.initialRouteTimeMin;
+            if (state.initialRouteDistMeters !== undefined) initialRouteDistMeters = state.initialRouteDistMeters;
             
             // Set initial zoom and center to the start of the route
             if (currentRouteGeoJSON && currentRouteGeoJSON.features) {

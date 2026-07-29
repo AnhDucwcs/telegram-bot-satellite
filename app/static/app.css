@@ -212,6 +212,17 @@ input:not(:placeholder-shown) + .clear-btn {
     margin-bottom: 24px;
 }
 
+/* Version Indicator */
+#app-version {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    font-size: 10px;
+    color: rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    z-index: 1000;
+}
+
 .btn {
     flex: 1;
     padding: 16px;
