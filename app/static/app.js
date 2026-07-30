@@ -22,6 +22,55 @@ const map = new ol.Map({
     })
 });
 
+// Bounding box validation layer
+const BBOX = {
+    minLng: 106.58,
+    minLat: 10.70,
+    maxLng: 106.82,
+    maxLat: 10.88
+};
+
+function isWithinBBox(lat, lng) {
+    return lng >= BBOX.minLng && lng <= BBOX.maxLng && lat >= BBOX.minLat && lat <= BBOX.maxLat;
+}
+
+const outerRing = [
+    [-180, -90],
+    [180, -90],
+    [180, 90],
+    [-180, 90],
+    [-180, -90]
+];
+
+const innerRing = [
+    [BBOX.minLng, BBOX.minLat],
+    [BBOX.maxLng, BBOX.minLat],
+    [BBOX.maxLng, BBOX.maxLat],
+    [BBOX.minLng, BBOX.maxLat],
+    [BBOX.minLng, BBOX.minLat]
+];
+
+const fogPolygon = new ol.geom.Polygon([outerRing, innerRing]);
+fogPolygon.transform('EPSG:4326', 'EPSG:3857');
+
+const bboxLayer = new ol.layer.Vector({
+    source: new ol.source.Vector({
+        features: [new ol.Feature({ geometry: fogPolygon })]
+    }),
+    style: new ol.style.Style({
+        stroke: new ol.style.Stroke({
+            color: 'rgba(239, 68, 68, 0.8)',
+            width: 2,
+            lineDash: [6, 6]
+        }),
+        fill: new ol.style.Fill({
+            color: 'rgba(0, 0, 0, 0.5)' // Sương mù che phần bên ngoài
+        })
+    }),
+    zIndex: 1
+});
+map.addLayer(bboxLayer);
+
 // Variables
 let currentOrigin = null;
 let currentDestination = null;
@@ -480,6 +529,16 @@ document.getElementById('btn-navigate').addEventListener('click', () => calculat
 
 async function calculateRoute(startNavigation = false, isReroute = false) {
     if (!currentOrigin || !currentDestination) return;
+    
+    if (!isWithinBBox(currentOrigin.lat, currentOrigin.lng)) {
+        showToast("Vị trí xuất phát nằm ngoài khu vực hỗ trợ (TP.HCM).");
+        return;
+    }
+    
+    if (!isWithinBBox(currentDestination.lat, currentDestination.lng)) {
+        showToast("Vị trí kết thúc nằm ngoài khu vực hỗ trợ (TP.HCM).");
+        return;
+    }
     
     if (startNavigation && currentRouteGeoJSON && !isReroute) {
         document.querySelector('.search-panel').classList.add('hidden');
@@ -1408,13 +1467,6 @@ window.submitTrafficReport = async function(severity) {
         if (res.ok) {
             showToast('Cảm ơn bạn đã báo cáo tuyến đường!');
             tg.HapticFeedback.notificationOccurred('success');
-            // Request reroute since the graph has changed
-            setTimeout(() => {
-                if (isNavigating && !isRerouting) {
-                    showToast('Đang tính lại đường tránh kẹt xe...');
-                    calculateRoute(true, true);
-                }
-            }, 1000);
         } else {
             const err = await res.json();
             showToast(err.detail || 'Lỗi khi gửi báo cáo');
