@@ -129,13 +129,14 @@
             <div class="modal-actions-col">
                 <button class="btn btn-warning" onclick="submitTrafficReport('congested')">Đông đúc (Chậm)</button>
                 <button class="btn btn-danger" onclick="submitTrafficReport('gridlock')">Kẹt cứng (Đứng im)</button>
+                <button class="btn" style="background: var(--color-text, #333); color: var(--color-bg, #fff);" onclick="submitTrafficReport('market')">🛒 Hẻm Chợ (Cấm đi)</button>
                 <button class="btn btn-secondary" onclick="closeTrafficReportModal()">Hủy</button>
             </div>
         </div>
     </div>
 
     <!-- Version Indicator -->
-    <div id="app-version">v1.1.3</div>
+    <div id="app-version">v1.1.4</div>
 
     <!-- OpenLayers JS -->
     <script src="https://unpkg.com/ol@9.2.4/dist/ol.js"></script>

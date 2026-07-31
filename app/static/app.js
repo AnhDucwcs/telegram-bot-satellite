@@ -1432,19 +1432,23 @@ function restoreState() {
 // Traffic Reporting
 // ==========================================
 
+let lockedReportPosition = null;
+
 document.getElementById('btn-report-traffic').addEventListener('click', () => {
+    lockedReportPosition = globalLocationMarker.getPosition();
     document.getElementById('traffic-report-modal').classList.remove('hidden');
 });
 
 window.closeTrafficReportModal = function() {
+    lockedReportPosition = null;
     document.getElementById('traffic-report-modal').classList.add('hidden');
 }
 
 window.submitTrafficReport = async function(severity) {
+    const pos = lockedReportPosition || globalLocationMarker.getPosition();
     closeTrafficReportModal();
     
     // Require GPS coordinate
-    const pos = globalLocationMarker.getPosition();
     if (!pos) {
         showToast('Không lấy được vị trí hiện tại');
         return;
