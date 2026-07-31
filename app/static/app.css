@@ -231,7 +231,11 @@ input:not(:placeholder-shown) + .clear-btn {
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
-    transition: transform 0.1s, opacity 0.2s, background 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform 0.1s, opacity 0.2s, background 0.2s, box-shadow 0.2s;
 }
 
 .btn:active {
@@ -599,4 +603,10 @@ input:not(:placeholder-shown) + .clear-btn {
     color: white;
     border: none;
     box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
+}
+.btn-dark {
+    background: var(--color-text, #333);
+    color: var(--color-bg, #fff);
+    border: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
