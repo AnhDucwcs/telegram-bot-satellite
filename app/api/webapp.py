@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException, Header, Depends
 import hmac
 import hashlib
+import pytz
 from urllib.parse import parse_qsl
 from typing import Optional
 from app.core.config import settings
@@ -174,7 +175,17 @@ async def trip_completed(payload: dict, request: Request, user: dict = Depends(g
     
     # Calculate speed and deviation
     import datetime
-    current_time = datetime.datetime.now().strftime("%H:%M")
+    nav_start_time_ms = payload.get("nav_start_time")
+    if nav_start_time_ms:
+        try:
+            start_dt = datetime.datetime.fromtimestamp(nav_start_time_ms / 1000.0, tz=pytz.timezone('Asia/Ho_Chi_Minh'))
+            nav_start_str = start_dt.strftime("%H:%M")
+        except Exception:
+            nav_start_str = "?"
+    else:
+        nav_start_str = "?"
+        
+    current_time = datetime.datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime("%H:%M")
     
     dev_text = ""
     if total_time < estimated_time:
@@ -191,7 +202,7 @@ async def trip_completed(payload: dict, request: Request, user: dict = Depends(g
     
     telegram_bot = request.app.state.telegram_bot
     text = (
-        f"<b>✅ Chuyến đi hoàn tất ({current_time})</b>\n\n"
+        f"<b>✅ Chuyến đi hoàn tất ({nav_start_str}-{current_time})</b>\n\n"
         f"<b>Lộ trình:</b>\n"
         f"• Từ: {origin_name}\n"
         f"• Đến: {destination_name}\n\n"

@@ -610,3 +610,34 @@ input:not(:placeholder-shown) + .clear-btn {
     border: none;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
+
+/* Trip Stats Grid */
+.trip-stats-grid {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background: #F8FAFC;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+.trip-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.trip-stat-item i {
+    font-size: 24px;
+    color: var(--accent-primary);
+    margin-bottom: 4px;
+}
+.stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+.stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}

@@ -135,8 +135,40 @@
         </div>
     </div>
 
+    <!-- Trip Completion Modal -->
+    <div id="trip-completion-modal" class="modal-overlay hidden">
+        <div class="modal-content soft-card">
+            <h3 style="text-align: center; color: var(--accent-primary); margin-bottom: 8px;"><i class="ph-fill ph-flag-checkered"></i> Đã đến đích</h3>
+            <p style="text-align: center; color: var(--text-muted); margin-bottom: 16px;">Chúc mừng bạn đã hoàn thành chuyến đi!</p>
+            
+            <div class="trip-stats-grid">
+                <div class="trip-stat-item">
+                    <i class="ph-fill ph-path"></i>
+                    <div class="stat-value" id="trip-stat-dist">0.0 km</div>
+                    <div class="stat-label">Quãng đường</div>
+                </div>
+                <div class="trip-stat-item">
+                    <i class="ph-fill ph-clock"></i>
+                    <div class="stat-value" id="trip-stat-time">0 phút</div>
+                    <div class="stat-label">Thời gian</div>
+                </div>
+            </div>
+
+            <div class="modal-actions-col" style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="reviewRoute()"><i class="ph-bold ph-map-trifold"></i> Xem lại đường đi</button>
+                <button class="btn btn-secondary" onclick="cancelReviewAndExit()"><i class="ph-bold ph-x"></i> Hủy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exit Review FAB (Floating Action Button) -->
+    <button id="btn-exit-review" class="btn-icon circle-btn btn-primary shadow-lg hidden" style="position: absolute; bottom: 20px; right: 20px; z-index: 100;" onclick="cancelReviewAndExit()">
+        <i class="ph-bold ph-x"></i>
+    </button>
+
+
     <!-- Version Indicator -->
-    <div id="app-version">v1.1.4</div>
+    <div id="app-version">v1.1.5</div>
 
     <!-- OpenLayers JS -->
     <script src="https://unpkg.com/ol@9.2.4/dist/ol.js"></script>

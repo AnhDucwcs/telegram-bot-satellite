@@ -79,6 +79,7 @@ let currentRouteGeoJSON = null;
 let navStartTime = null;
 let totalAwayTimeMs = 0;
 let lastPauseTime = null;
+let reviewTimeoutId = null;
 
 // Overlays (Markers)
 function createOverlay(color, id, isDot = false) {
@@ -893,7 +894,7 @@ function handlePositionUpdate(position) {
         {units: 'meters'}
     );
     
-    if (isAtEndSegments && distToDest < 50) {
+    if (isAtEndSegments && distToDest < 30) {
         // Reached destination!
         showToast("Chúc mừng! Bạn đã đến đích.", true);
         tg.HapticFeedback.notificationOccurred('success');
@@ -925,6 +926,7 @@ function handlePositionUpdate(position) {
                 origin_name: originName,
                 destination_name: destName,
                 distance_km: distKm,
+                nav_start_time: navStartTime,
                 estimated_time_min: estimatedTimeMin,
                 total_time_min: totalTimeMin,
                 away_time_min: awayTimeMin,
@@ -932,7 +934,14 @@ function handlePositionUpdate(position) {
             })
         }).catch(err => console.error("Error sending trip stats:", err));
 
-        stopNavMode();
+        if (watchId) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+        }
+        stopSimulator();
+        isNavigating = false;
+        
+        showTripCompletionModal(distKm, displayTimeMin);
         return;
     }
     
@@ -1480,4 +1489,50 @@ window.submitTrafficReport = async function(severity) {
         showToast('Lỗi mạng khi gửi báo cáo');
         console.error(e);
     }
+}
+
+// ==========================================
+// Trip Completion Logic
+// ==========================================
+
+window.showTripCompletionModal = function(distKm, timeMin) {
+    document.getElementById('trip-stat-dist').textContent = `${distKm} km`;
+    document.getElementById('trip-stat-time').textContent = `${timeMin} phút`;
+    document.getElementById('trip-completion-modal').classList.remove('hidden');
+    
+    // Bắt đầu đếm ngược 5 phút TTL cho màn hình này
+    if (reviewTimeoutId) clearTimeout(reviewTimeoutId);
+    reviewTimeoutId = setTimeout(() => {
+        showToast('Đã đóng giao diện hoàn thành chuyến đi');
+        cancelReviewAndExit();
+    }, 5 * 60 * 1000); // 5 minutes
+}
+
+window.reviewRoute = function() {
+    // Hide modal and UI elements
+    document.getElementById('trip-completion-modal').classList.add('hidden');
+    document.getElementById('screen-navigation').classList.add('hidden');
+    document.getElementById('screen-search').classList.add('hidden');
+    document.querySelector('.search-panel').classList.add('hidden');
+    
+    // Show exit button
+    document.getElementById('btn-exit-review').classList.remove('hidden');
+    
+    // Người dùng đã ấn Xem lại -> Vô hiệu hoá cái chết tự động, cho phép xem vô hạn
+    if (reviewTimeoutId) {
+        clearTimeout(reviewTimeoutId);
+        reviewTimeoutId = null;
+    }
+}
+
+window.cancelReviewAndExit = function() {
+    if (reviewTimeoutId) {
+        clearTimeout(reviewTimeoutId);
+        reviewTimeoutId = null;
+    }
+    
+    document.getElementById('trip-completion-modal').classList.add('hidden');
+    document.getElementById('btn-exit-review').classList.add('hidden');
+    
+    stopNavMode();
 }
