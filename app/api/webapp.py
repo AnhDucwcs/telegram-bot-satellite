@@ -250,4 +250,10 @@ async def report_traffic(payload: dict, request: Request, user: dict = Depends(g
     if response.status_code == 200:
         return response.json()
     else:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
+        # Bóc tách lỗi từ AI Engine để hiển thị thân thiện trên UI
+        try:
+            error_data = response.json()
+            error_detail = error_data.get("detail", response.text)
+        except:
+            error_detail = response.text
+        raise HTTPException(status_code=response.status_code, detail=error_detail)

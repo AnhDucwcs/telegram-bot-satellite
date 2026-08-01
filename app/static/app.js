@@ -1468,14 +1468,20 @@ window.submitTrafficReport = async function(severity) {
     const lat = lonlat[1];
     
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
         const res = await fetch('/api/v1/webapp/report-traffic', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'x-telegram-init-data': tg.initData
             },
-            body: JSON.stringify({ lat, lng, severity })
+            body: JSON.stringify({ lat, lng, severity }),
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (res.ok) {
             showToast('Cảm ơn bạn đã báo cáo tuyến đường!');
