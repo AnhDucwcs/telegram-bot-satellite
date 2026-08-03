@@ -11,7 +11,9 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 @router.post("/result")
 async def receive_result(request: Request):
     secret_header = request.headers.get("x-internal-api-key")
-    if secret_header != settings.INTERNAL_API_KEY:
+    secret_query = request.query_params.get("secret")
+    
+    if secret_header != settings.INTERNAL_API_KEY and secret_query != settings.INTERNAL_API_KEY:
         logger.warning("Received internal result with invalid API key")
         return {"status": "invalid API key"}
 
