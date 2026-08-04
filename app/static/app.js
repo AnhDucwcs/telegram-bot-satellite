@@ -75,6 +75,12 @@ map.addLayer(bboxLayer);
 const trafficSource = new ol.source.Vector({
     format: new ol.format.GeoJSON(),
     loader: function(extent, resolution, projection) {
+        if (map.getView().getZoom() < 14) {
+            trafficSource.clear(); // Clear existing features when zoomed out
+            trafficSource.removeLoadedExtent(extent); // Force reload when zooming back in
+            return;
+        }
+
         const ext4326 = ol.proj.transformExtent(extent, projection, 'EPSG:4326');
         const minLng = ext4326[0];
         const minLat = ext4326[1];
@@ -988,8 +994,6 @@ function handlePositionUpdate(position) {
         if (watchId) {
             navigator.geolocation.clearWatch(watchId);
             watchId = null;
-        }
-        stopSimulator();
         isNavigating = false;
         trafficLayer.setOpacity(1.0); // Restore traffic layer
         
@@ -1118,7 +1122,7 @@ function stopNavMode() {
         watchId = null;
     }
     
-    stopSimulator();
+    
     
     // Clear persisted state since user explicitly stopped navigation
     clearSavedState();
