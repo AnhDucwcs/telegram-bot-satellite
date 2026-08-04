@@ -206,6 +206,37 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     
     raise HTTPException(status_code=500, detail="Failed to contact AI Engine")
 
+@router.get("/traffic-layer")
+@limiter.limit("30/minute")
+async def get_traffic_layer(
+    request: Request,
+    bbox: str,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Proxy traffic layer requests to backend with bbox.
+    Format of bbox string: min_lng,min_lat,max_lng,max_lat
+    """
+    ai_client = request.app.state.ai_client
+    
+    try:
+        min_lng, min_lat, max_lng, max_lat = map(float, bbox.split(','))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid bbox format")
+        
+    url = f"{settings.AI_ENGINE_URL}/api/v1/traffic-layer/?min_lng={min_lng}&min_lat={min_lat}&max_lng={max_lng}&max_lat={max_lat}"
+    
+    headers = {
+        "x-internal-api-key": settings.AI_ENGINE_API_KEY
+    }
+    
+    response = await ai_client.client.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+        
+    raise HTTPException(status_code=response.status_code, detail="Failed to get traffic layer")
+
+
 @router.get("/job/{job_id}")
 @limiter.limit("30/minute")
 async def get_job_status(job_id: str, request: Request, user: dict = Depends(get_current_user)):

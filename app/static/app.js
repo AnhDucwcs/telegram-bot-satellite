@@ -71,6 +71,54 @@ const bboxLayer = new ol.layer.Vector({
 });
 map.addLayer(bboxLayer);
 
+// Traffic Layer (Lazy Loaded via BBox)
+const trafficSource = new ol.source.Vector({
+    format: new ol.format.GeoJSON(),
+    loader: function(extent, resolution, projection) {
+        const ext4326 = ol.proj.transformExtent(extent, projection, 'EPSG:4326');
+        const minLng = ext4326[0];
+        const minLat = ext4326[1];
+        const maxLng = ext4326[2];
+        const maxLat = ext4326[3];
+
+        const url = `/api/v1/webapp/traffic-layer?bbox=${minLng},${minLat},${maxLng},${maxLat}`;
+        fetch(url, { headers: { 'Accept': 'application/json', 'x-telegram-init-data': tg.initData } })
+            .then(r => {
+                if(!r.ok) throw new Error("Failed");
+                return r.json();
+            })
+            .then(data => {
+                const features = trafficSource.getFormat().readFeatures(data, {
+                    featureProjection: projection
+                });
+                trafficSource.addFeatures(features);
+            })
+            .catch(err => console.error("Traffic Error:", err));
+    },
+    strategy: ol.loadingstrategy.bbox
+});
+
+const trafficLayer = new ol.layer.Vector({
+    source: trafficSource,
+    minZoom: 14,
+    style: function(feature) {
+        const color = feature.get('color');
+        let strokeColor = 'rgba(34, 197, 94, 0.8)'; // Green
+        if (color === 'yellow') strokeColor = 'rgba(234, 179, 8, 0.8)';
+        if (color === 'orange') strokeColor = 'rgba(249, 115, 22, 0.8)';
+        if (color === 'red') strokeColor = 'rgba(239, 68, 68, 0.9)';
+
+        return new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: strokeColor,
+                width: 4
+            })
+        });
+    },
+    zIndex: 2 // Above basemap, below route
+});
+map.addLayer(trafficLayer);
+
 // Variables
 let currentOrigin = null;
 let currentDestination = null;
@@ -709,6 +757,7 @@ function releaseWakeLock() {
 function startNavMode() {
     if (isNavigating) return;
     isNavigating = true;
+    trafficLayer.setOpacity(0.15); // Fade traffic layer during navigation to reduce visual clutter
     
     navStartTime = Date.now();
     totalAwayTimeMs = 0;
@@ -942,6 +991,7 @@ function handlePositionUpdate(position) {
         }
         stopSimulator();
         isNavigating = false;
+        trafficLayer.setOpacity(1.0); // Restore traffic layer
         
         showTripCompletionModal(distKm, displayTimeMin);
         return;
@@ -1060,6 +1110,7 @@ function showToast(msg) {
 
 function stopNavMode() {
     isNavigating = false;
+    trafficLayer.setOpacity(1.0); // Restore traffic layer
     isRerouting = false;
     
     if (watchId) {
@@ -1123,156 +1174,7 @@ function centerAndRotateMap() {
 
 document.getElementById('btn-recenter').addEventListener('click', centerAndRotateMap);
 
-// Simulator
-let simActive = false;
-let simLat = 0;
-let simLng = 0;
-let simHeading = 0;
-let simInterval = null;
-let simKeys = {};
-let simIndicator = null;
 
-function startSimulator() {
-    if (simActive) return;
-    simActive = true;
-    
-    if (globalLocationMarker.getPosition()) {
-        const lonlat = ol.proj.toLonLat(globalLocationMarker.getPosition());
-        simLat = lonlat[1];
-        simLng = lonlat[0];
-    } else if (currentOrigin) {
-        simLat = currentOrigin.lat;
-        simLng = currentOrigin.lng;
-    } else {
-        simLat = 10.7769;
-        simLng = 106.7009;
-    }
-    
-    simIndicator = document.createElement('div');
-    simIndicator.id = 'sim-indicator';
-    simIndicator.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:white;padding:12px;border-radius:12px;z-index:9999;text-align:center;backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); pointer-events:auto;';
-    
-    simIndicator.innerHTML = `
-        <div style="font-size:12px; font-weight:bold; margin-bottom:10px; color:#10b981;">🎮 SIMULATOR MODE</div>
-        <div id="sim-debug" style="font-size:10px; color:yellow; margin-bottom:5px;">Dist: 0m | Seg: 0/0</div>
-        <div style="display:flex; gap:10px; margin-bottom:10px;">
-            <button id="sim-btn-w" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">⬆️</button>
-        </div>
-        <div style="display:flex; gap:10px; margin-bottom:10px;">
-            <button id="sim-btn-a" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">⬅️</button>
-            <button id="sim-btn-s" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">⬇️</button>
-            <button id="sim-btn-d" style="width:50px;height:50px;border-radius:25px;border:none;background:#374151;color:white;font-size:24px;">➡️</button>
-        </div>
-        <button id="sim-btn-close" style="width:100%; padding:10px; border-radius:8px; border:none; background:#ef4444; color:white; font-weight:bold;">Tắt mô phỏng</button>
-    `;
-    
-    document.body.appendChild(simIndicator);
-    
-    const bindBtn = (id, key) => {
-        const btn = document.getElementById(id);
-        const start = (e) => { e.preventDefault(); simKeys[key] = true; btn.style.background = '#10b981'; };
-        const end = (e) => { e.preventDefault(); simKeys[key] = false; btn.style.background = '#374151'; };
-        btn.addEventListener('touchstart', start, {passive:false});
-        btn.addEventListener('touchend', end, {passive:false});
-        btn.addEventListener('mousedown', start);
-        btn.addEventListener('mouseup', end);
-        btn.addEventListener('mouseleave', end);
-    };
-    
-    bindBtn('sim-btn-w', 'w');
-    bindBtn('sim-btn-a', 'a');
-    bindBtn('sim-btn-s', 's');
-    bindBtn('sim-btn-d', 'd');
-    
-    document.getElementById('sim-btn-close').addEventListener('click', stopSimulator);
-    
-    if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-    }
-    
-    document.addEventListener('keydown', simKeyDown);
-    document.addEventListener('keyup', simKeyUp);
-    
-    const MOVE_SPEED = 0.00005;
-    const TURN_SPEED = 5;
-    
-    simInterval = setInterval(() => {
-        if (simKeys['w'] || simKeys['W']) {
-            simLat += MOVE_SPEED * Math.cos(simHeading * Math.PI / 180);
-            simLng += MOVE_SPEED * Math.sin(simHeading * Math.PI / 180);
-        }
-        if (simKeys['s'] || simKeys['S']) {
-            simLat -= MOVE_SPEED * Math.cos(simHeading * Math.PI / 180);
-            simLng -= MOVE_SPEED * Math.sin(simHeading * Math.PI / 180);
-        }
-        if (simKeys['a'] || simKeys['A']) {
-            simLat += MOVE_SPEED * Math.cos((simHeading - 90) * Math.PI / 180);
-            simLng += MOVE_SPEED * Math.sin((simHeading - 90) * Math.PI / 180);
-        }
-        if (simKeys['d'] || simKeys['D']) {
-            simLat += MOVE_SPEED * Math.cos((simHeading + 90) * Math.PI / 180);
-            simLng += MOVE_SPEED * Math.sin((simHeading + 90) * Math.PI / 180);
-        }
-        if (simKeys['ArrowLeft']) {
-            simHeading = (simHeading - TURN_SPEED + 360) % 360;
-        }
-        if (simKeys['ArrowRight']) {
-            simHeading = (simHeading + TURN_SPEED) % 360;
-        }
-        
-        handlePositionUpdate({
-            coords: {
-                latitude: simLat,
-                longitude: simLng,
-                heading: simHeading
-            }
-        });
-    }, 100);
-}
-
-function stopSimulator() {
-    if (!simActive) return;
-    simActive = false;
-    
-    if (simInterval) {
-        clearInterval(simInterval);
-        simInterval = null;
-    }
-    
-    document.removeEventListener('keydown', simKeyDown);
-    document.removeEventListener('keyup', simKeyUp);
-    simKeys = {};
-    
-    if (simIndicator) {
-        simIndicator.remove();
-        simIndicator = null;
-    }
-}
-
-function simKeyDown(e) {
-    simKeys[e.key] = true;
-    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-        e.preventDefault();
-    }
-}
-
-function simKeyUp(e) {
-    simKeys[e.key] = false;
-}
-
-document.getElementById('btn-sim-mode').addEventListener('click', () => {
-    if (simActive) stopSimulator();
-    else startSimulator();
-});
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'g' || e.key === 'G') {
-        if (e.repeat) return;
-        if (simActive) stopSimulator();
-        else startSimulator();
-    }
-});
 
 // ==========================================
 // Google Maps Rescue Button
