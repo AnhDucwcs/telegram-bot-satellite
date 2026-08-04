@@ -227,7 +227,7 @@ async def get_traffic_layer(
     url = f"{settings.AI_ENGINE_URL}/api/v1/traffic-layer/?min_lng={min_lng}&min_lat={min_lat}&max_lng={max_lng}&max_lat={max_lat}"
     
     headers = {
-        "x-internal-api-key": settings.AI_ENGINE_API_KEY
+        "x-internal-api-key": settings.INTERNAL_API_KEY
     }
     
     response = await ai_client.client.get(url, headers=headers)
