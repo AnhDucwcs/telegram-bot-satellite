@@ -991,9 +991,10 @@ function handlePositionUpdate(position) {
             })
         }).catch(err => console.error("Error sending trip stats:", err));
 
-        if (watchId) {
+         if (watchId) {
             navigator.geolocation.clearWatch(watchId);
             watchId = null;
+        }
         isNavigating = false;
         trafficLayer.setOpacity(1.0); // Restore traffic layer
         
