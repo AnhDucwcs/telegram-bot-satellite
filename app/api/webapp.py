@@ -6,6 +6,7 @@ from urllib.parse import parse_qsl
 from typing import Optional
 from app.core.config import settings
 from app.services.history import HistoryService
+from app.core.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/webapp", tags=["webapp"])
 
@@ -55,19 +56,22 @@ async def get_current_user(x_telegram_init_data: Optional[str] = Header(None)):
     return user_data
 
 @router.get("/history/locations")
-async def get_recent_locations(user: dict = Depends(get_current_user)):
+@limiter.limit("15/10minutes")
+async def get_recent_locations(request: Request, user: dict = Depends(get_current_user)):
     user_id = user["id"]
     locations = await HistoryService.get_recent_locations(user_id)
     return {"status": "ok", "locations": locations}
 
 @router.get("/history/routes")
-async def get_recent_routes(user: dict = Depends(get_current_user)):
+@limiter.limit("15/10minutes")
+async def get_recent_routes(request: Request, user: dict = Depends(get_current_user)):
     user_id = user["id"]
     routes = await HistoryService.get_recent_routes(user_id)
     return {"status": "ok", "routes": routes}
 
 @router.post("/history/route")
-async def save_recent_route(payload: dict, user: dict = Depends(get_current_user)):
+@limiter.limit("15/10minutes")
+async def save_recent_route(payload: dict, request: Request, user: dict = Depends(get_current_user)):
     """Save a route to history when user starts navigation explicitly"""
     user_id = user["id"]
     origin = payload.get("origin")
@@ -77,13 +81,15 @@ async def save_recent_route(payload: dict, user: dict = Depends(get_current_user
     return {"status": "ok"}
 
 @router.post("/history/location")
-async def save_location(location: dict, user: dict = Depends(get_current_user)):
+@limiter.limit("15/10minutes")
+async def save_location(location: dict, request: Request, user: dict = Depends(get_current_user)):
     """Save a single location when user searches for it"""
     user_id = user["id"]
     await HistoryService.add_recent_location(user_id, location)
     return {"status": "ok"}
 
 @router.post("/route")
+@limiter.limit("15/10minutes")
 async def create_route_job(payload: dict, request: Request, user: dict = Depends(get_current_user)):
     """
     Proxy API to create a routing job and save the route history.
@@ -139,6 +145,7 @@ async def create_route_job(payload: dict, request: Request, user: dict = Depends
     raise HTTPException(status_code=500, detail="Failed to contact AI Engine")
 
 @router.get("/job/{job_id}")
+@limiter.limit("30/minute")
 async def get_job_status(job_id: str, request: Request, user: dict = Depends(get_current_user)):
     """
     Poll this API to get routing result.
@@ -154,6 +161,7 @@ async def get_job_status(job_id: str, request: Request, user: dict = Depends(get
     return {"status": "pending"}
 
 @router.post("/trip-completed")
+@limiter.limit("5/minute")
 async def trip_completed(payload: dict, request: Request, user: dict = Depends(get_current_user)):
     """
     Send trip statistics to user via Telegram upon destination reached.
@@ -223,6 +231,7 @@ async def trip_completed(payload: dict, request: Request, user: dict = Depends(g
         return {"status": "error", "message": str(e)}
 
 @router.post("/report-traffic")
+@limiter.limit("5/minute")
 async def report_traffic(payload: dict, request: Request, user: dict = Depends(get_current_user)):
     """
     Proxy API to report traffic jam to the routing engine.

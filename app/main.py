@@ -10,6 +10,10 @@ from app.core.db import connect_to_mongo, close_mongo_connection
 from app.api.telegram import router as telegram_router
 from app.api.internal import router as internal_router
 from app.api.webapp import router as webapp_router
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from app.core.limiter import limiter
 
 setup_logging()
 
@@ -47,6 +51,9 @@ async def lifespan(app: FastAPI):
     await close_mongo_connection()
 
 app = FastAPI(lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Mount static files for WebApp
 import os
