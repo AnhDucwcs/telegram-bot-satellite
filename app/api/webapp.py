@@ -55,6 +55,68 @@ async def get_current_user(x_telegram_init_data: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid Telegram InitData")
     return user_data
 
+import time
+_places_cache = {}
+
+@router.get("/places/search")
+@limiter.limit("20/minute")
+async def search_places(q: str, request: Request, user: dict = Depends(get_current_user)):
+    """Proxy API to search places via Geoapify"""
+    if not q or len(q) < 2:
+        return {"features": []}
+    
+    now = time.time()
+    cache_key = q.lower().strip()
+    if cache_key in _places_cache:
+        cached_data, timestamp = _places_cache[cache_key]
+        if now - timestamp < 3600:
+            return cached_data
+            
+    if len(_places_cache) > 1000:
+        _places_cache.clear()
+        
+    ai_client = request.app.state.ai_client
+    url = f"https://api.geoapify.com/v1/geocode/autocomplete?text={q}&format=json&apiKey={settings.GEOAPIFY_API_KEY}&filter=countrycode:vn"
+    
+    response = await ai_client.client.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        features = []
+        for result in data.get("results", []):
+            name = result.get("name") or result.get("street") or result.get("city")
+            if not name:
+                name = result.get("formatted", "Unknown Location")
+                
+            features.append({
+                "properties": {
+                    "name": name,
+                    "street": result.get("street", ""),
+                    "district": result.get("suburb") or result.get("county") or result.get("district") or "",
+                    "city": result.get("city") or result.get("state") or ""
+                },
+                "geometry": {
+                    "coordinates": [result.get("lon"), result.get("lat")]
+                }
+            })
+            
+        result_payload = {"features": features}
+        _places_cache[cache_key] = (result_payload, now)
+        return result_payload
+        
+    # Fallback to free Photon API if Geoapify hits rate limit (429/403) or errors out
+    try:
+        photon_url = f"https://photon.komoot.io/api/?q={q}&lat=10.7769&lon=106.7009&limit=5"
+        photon_response = await ai_client.client.get(photon_url)
+        if photon_response.status_code == 200:
+            data = photon_response.json()
+            result_payload = {"features": data.get("features", [])}
+            _places_cache[cache_key] = (result_payload, now)
+            return result_payload
+    except Exception:
+        pass
+        
+    raise HTTPException(status_code=500, detail="Geocoding API failed")
+
 @router.get("/history/locations")
 @limiter.limit("15/10minutes")
 async def get_recent_locations(request: Request, user: dict = Depends(get_current_user)):

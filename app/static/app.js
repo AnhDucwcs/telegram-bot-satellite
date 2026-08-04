@@ -329,7 +329,9 @@ async function searchLocation(query, type) {
     }
     
     try {
-        const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=10.7769&lon=106.7009&limit=5`);
+        const res = await fetch(`/api/v1/webapp/places/search?q=${encodeURIComponent(query)}`, {
+            headers: { 'x-telegram-init-data': tg.initData }
+        });
         const data = await res.json();
         
         suggestionsBox.innerHTML = '';
