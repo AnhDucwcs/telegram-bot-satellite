@@ -322,7 +322,9 @@ function resetApp() {
     if (globalRemainingStartDashedFeature) routeSource.removeFeature(globalRemainingStartDashedFeature);
     if (globalRemainingEndDashedFeature) routeSource.removeFeature(globalRemainingEndDashedFeature);
     globalPassedFeature = null;
-    globalRemainingFeature = null;
+    globalRemainingSolidFeature = null;
+    globalRemainingStartDashedFeature = null;
+    globalRemainingEndDashedFeature = null;
     
     if (globalLocationMarker.getPosition()) {
         map.getView().animate({center: globalLocationMarker.getPosition(), zoom: 17, rotation: 0, duration: 500});
@@ -738,7 +740,9 @@ let initialDestName = null;
 let initialRouteTimeMin = 0;
 let initialRouteDistMeters = 0;
 let globalPassedFeature = null;
-let globalRemainingFeature = null;
+let globalRemainingSolidFeature = null;
+let globalRemainingStartDashedFeature = null;
+let globalRemainingEndDashedFeature = null;
 let traveledPathCoords = [];
 let lastPeriodicRerouteTime = 0;
 
@@ -883,7 +887,7 @@ function initRouteSegments(isReroute = false) {
 }
 
 function updateRouteDisplay(closestIndex, fraction) {
-    if (routeSegments.length === 0 || !globalPassedFeature || !globalRemainingFeature) return;
+    if (routeSegments.length === 0 || !globalPassedFeature || !globalRemainingSolidFeature) return;
     
     const currentSeg = routeSegments[closestIndex];
     const startProj = ol.proj.fromLonLat(currentSeg.start);
