@@ -919,9 +919,25 @@ function updateRouteDisplay(closestIndex, fraction) {
     }
     
     // Build remaining coordinates (solid line)
-    let remainingCoords = [interpProj, endProj];
-    for (let i = closestIndex + 1; i < routeSegments.length; i++) {
-        remainingCoords.push(ol.proj.fromLonLat(routeSegments[i].end));
+    // Solid line represents segments 1 to length-2
+    let remainingCoords = [];
+    
+    if (routeSegments.length > 2) {
+        if (closestIndex === 0) {
+            // User is on the first dashed line. Solid line is fully intact.
+            remainingCoords.push(ol.proj.fromLonLat(routeSegments[1].start));
+            for (let i = 1; i < routeSegments.length - 1; i++) {
+                remainingCoords.push(ol.proj.fromLonLat(routeSegments[i].end));
+            }
+        } else if (closestIndex > 0 && closestIndex < routeSegments.length - 1) {
+            // User is driving on the solid line.
+            remainingCoords.push(interpProj);
+            remainingCoords.push(endProj);
+            for (let i = closestIndex + 1; i < routeSegments.length - 1; i++) {
+                remainingCoords.push(ol.proj.fromLonLat(routeSegments[i].end));
+            }
+        }
+        // If closestIndex === routeSegments.length - 1, solid line is fully passed (empty).
     }
     
     globalRemainingSolidFeature.getGeometry().setCoordinates(remainingCoords);
