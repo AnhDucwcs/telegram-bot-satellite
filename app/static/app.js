@@ -318,7 +318,9 @@ function resetApp() {
     currentRouteGeoJSON = null;
     traveledPathCoords = [];
     if (globalPassedFeature) routeSource.removeFeature(globalPassedFeature);
-    if (globalRemainingFeature) routeSource.removeFeature(globalRemainingFeature);
+    if (globalRemainingSolidFeature) routeSource.removeFeature(globalRemainingSolidFeature);
+    if (globalRemainingStartDashedFeature) routeSource.removeFeature(globalRemainingStartDashedFeature);
+    if (globalRemainingEndDashedFeature) routeSource.removeFeature(globalRemainingEndDashedFeature);
     globalPassedFeature = null;
     globalRemainingFeature = null;
     
@@ -833,10 +835,16 @@ function initRouteSegments(isReroute = false) {
         globalPassedFeature = new ol.Feature({ geometry: new ol.geom.LineString([]) });
         globalPassedFeature.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#9ca3af', width: 6 }) }));
         
-        globalRemainingFeature = new ol.Feature({ geometry: new ol.geom.LineString([]) });
-        globalRemainingFeature.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#3b82f6', width: 6 }) }));
+        globalRemainingSolidFeature = new ol.Feature({ geometry: new ol.geom.LineString([]) });
+        globalRemainingSolidFeature.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#3b82f6', width: 6 }) }));
         
-        routeSource.addFeatures([globalPassedFeature, globalRemainingFeature]);
+        globalRemainingStartDashedFeature = new ol.Feature({ geometry: new ol.geom.LineString([]) });
+        globalRemainingStartDashedFeature.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(59, 130, 246, 0.6)', width: 6, lineDash: [10, 10] }) }));
+        
+        globalRemainingEndDashedFeature = new ol.Feature({ geometry: new ol.geom.LineString([]) });
+        globalRemainingEndDashedFeature.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(59, 130, 246, 0.6)', width: 6, lineDash: [10, 10] }) }));
+        
+        routeSource.addFeatures([globalPassedFeature, globalRemainingSolidFeature, globalRemainingStartDashedFeature, globalRemainingEndDashedFeature]);
         lastPeriodicRerouteTime = Date.now();
     }
     
@@ -891,13 +899,57 @@ function updateRouteDisplay(closestIndex, fraction) {
         globalPassedFeature.getGeometry().setCoordinates(traveledPathCoords);
     }
     
-    // Build remaining coordinates
-    let remainingCoords = [interpProj, endProj];
-    for (let i = closestIndex + 1; i < routeSegments.length; i++) {
-        remainingCoords.push(ol.proj.fromLonLat(routeSegments[i].end));
+    // Build remaining coordinates split into three parts
+    let startDashedCoords = [];
+    let solidCoords = [];
+    let endDashedCoords = [];
+    
+    // Iterate from closestIndex to the end
+    for (let i = closestIndex; i < routeSegments.length; i++) {
+        const seg = routeSegments[i];
+        
+        // For the current segment, we start at interpProj, for others we start at seg.start
+        const startP = (i === closestIndex) ? interpProj : ol.proj.fromLonLat(seg.start);
+        const endP = ol.proj.fromLonLat(seg.end);
+        
+        if (i === 0) {
+            // First segment is dashed
+            if (startDashedCoords.length === 0) startDashedCoords.push(startP);
+            startDashedCoords.push(endP);
+        } else if (i === routeSegments.length - 1) {
+            // Last segment is dashed
+            if (endDashedCoords.length === 0) endDashedCoords.push(startP);
+            endDashedCoords.push(endP);
+        } else {
+            // Middle segments are solid
+            if (solidCoords.length === 0) solidCoords.push(startP);
+            solidCoords.push(endP);
+        }
     }
     
-    globalRemainingFeature.getGeometry().setCoordinates(remainingCoords);
+    // Connect the layers if they touch
+    if (startDashedCoords.length > 0 && solidCoords.length > 0) {
+        // solidCoords should start exactly where startDashedCoords ends
+        if (solidCoords[0][0] !== startDashedCoords[startDashedCoords.length - 1][0]) {
+            solidCoords.unshift(startDashedCoords[startDashedCoords.length - 1]);
+        }
+    }
+    if (solidCoords.length > 0 && endDashedCoords.length > 0) {
+        // endDashedCoords should start exactly where solidCoords ends
+        if (endDashedCoords[0][0] !== solidCoords[solidCoords.length - 1][0]) {
+            endDashedCoords.unshift(solidCoords[solidCoords.length - 1]);
+        }
+    }
+    // If solid is empty but we have both dashed (a 2-segment route), connect them directly
+    if (solidCoords.length === 0 && startDashedCoords.length > 0 && endDashedCoords.length > 0) {
+        if (endDashedCoords[0][0] !== startDashedCoords[startDashedCoords.length - 1][0]) {
+             endDashedCoords.unshift(startDashedCoords[startDashedCoords.length - 1]);
+        }
+    }
+    
+    globalRemainingStartDashedFeature.getGeometry().setCoordinates(startDashedCoords);
+    globalRemainingSolidFeature.getGeometry().setCoordinates(solidCoords);
+    globalRemainingEndDashedFeature.getGeometry().setCoordinates(endDashedCoords);
 }
 
 function handlePositionUpdate(position) {
@@ -942,18 +994,25 @@ function handlePositionUpdate(position) {
         currentSegmentIndex = closestIndex;
     }
     
-    // Destination Reached Logic
+    // Destination Reached Logic: check against ORIGINAL destination and SNAPPED destination
     const isAtEndSegments = currentSegmentIndex >= routeSegments.length - 2;
-    const finalDest = routeSegments[routeSegments.length - 1].end;
-    const distToDest = turf.distance(
+    const originalDest = routeSegments[routeSegments.length - 1].end;
+    const snappedDest = routeSegments[routeSegments.length - 1].start;
+    
+    const distToOriginalDest = turf.distance(
         turf.point([longitude, latitude]),
-        turf.point(finalDest),
+        turf.point(originalDest),
+        {units: 'meters'}
+    );
+    const distToSnappedDest = turf.distance(
+        turf.point([longitude, latitude]),
+        turf.point(snappedDest),
         {units: 'meters'}
     );
     
-    if (isAtEndSegments && distToDest < 30) {
+    if (isAtEndSegments && (distToOriginalDest <= 50 || distToSnappedDest <= 50)) {
         // Reached destination!
-        showToast("Chúc mừng! Bạn đã đến đích.", true);
+        showToast("Chúc mừng! Bạn đã hoàn tất lộ trình.", true);
         tg.HapticFeedback.notificationOccurred('success');
         
         // Gửi thống kê chuyến đi qua Telegram (Background)
