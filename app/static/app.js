@@ -880,6 +880,21 @@ function initRouteSegments(isReroute = false) {
         
         if (routeSegments.length > 0) {
             updateRouteDisplay(0, 0); // Immediately draw the route
+            
+            // Draw static dashed lines for first and last segments
+            if (routeSegments.length >= 2) {
+                const firstSeg = routeSegments[0];
+                globalRemainingStartDashedFeature.getGeometry().setCoordinates([
+                    ol.proj.fromLonLat(firstSeg.start),
+                    ol.proj.fromLonLat(firstSeg.end)
+                ]);
+                
+                const lastSeg = routeSegments[routeSegments.length - 1];
+                globalRemainingEndDashedFeature.getGeometry().setCoordinates([
+                    ol.proj.fromLonLat(lastSeg.start),
+                    ol.proj.fromLonLat(lastSeg.end)
+                ]);
+            }
         }
     } catch (e) {
         console.error("Lỗi parse GeoJSON:", e);
@@ -903,57 +918,13 @@ function updateRouteDisplay(closestIndex, fraction) {
         globalPassedFeature.getGeometry().setCoordinates(traveledPathCoords);
     }
     
-    // Build remaining coordinates split into three parts
-    let startDashedCoords = [];
-    let solidCoords = [];
-    let endDashedCoords = [];
-    
-    // Iterate from closestIndex to the end
-    for (let i = closestIndex; i < routeSegments.length; i++) {
-        const seg = routeSegments[i];
-        
-        // For the current segment, we start at interpProj, for others we start at seg.start
-        const startP = (i === closestIndex) ? interpProj : ol.proj.fromLonLat(seg.start);
-        const endP = ol.proj.fromLonLat(seg.end);
-        
-        if (i === 0) {
-            // First segment is dashed
-            if (startDashedCoords.length === 0) startDashedCoords.push(startP);
-            startDashedCoords.push(endP);
-        } else if (i === routeSegments.length - 1) {
-            // Last segment is dashed
-            if (endDashedCoords.length === 0) endDashedCoords.push(startP);
-            endDashedCoords.push(endP);
-        } else {
-            // Middle segments are solid
-            if (solidCoords.length === 0) solidCoords.push(startP);
-            solidCoords.push(endP);
-        }
+    // Build remaining coordinates (solid line)
+    let remainingCoords = [interpProj, endProj];
+    for (let i = closestIndex + 1; i < routeSegments.length; i++) {
+        remainingCoords.push(ol.proj.fromLonLat(routeSegments[i].end));
     }
     
-    // Connect the layers if they touch
-    if (startDashedCoords.length > 0 && solidCoords.length > 0) {
-        // solidCoords should start exactly where startDashedCoords ends
-        if (solidCoords[0][0] !== startDashedCoords[startDashedCoords.length - 1][0]) {
-            solidCoords.unshift(startDashedCoords[startDashedCoords.length - 1]);
-        }
-    }
-    if (solidCoords.length > 0 && endDashedCoords.length > 0) {
-        // endDashedCoords should start exactly where solidCoords ends
-        if (endDashedCoords[0][0] !== solidCoords[solidCoords.length - 1][0]) {
-            endDashedCoords.unshift(solidCoords[solidCoords.length - 1]);
-        }
-    }
-    // If solid is empty but we have both dashed (a 2-segment route), connect them directly
-    if (solidCoords.length === 0 && startDashedCoords.length > 0 && endDashedCoords.length > 0) {
-        if (endDashedCoords[0][0] !== startDashedCoords[startDashedCoords.length - 1][0]) {
-             endDashedCoords.unshift(startDashedCoords[startDashedCoords.length - 1]);
-        }
-    }
-    
-    globalRemainingStartDashedFeature.getGeometry().setCoordinates(startDashedCoords);
-    globalRemainingSolidFeature.getGeometry().setCoordinates(solidCoords);
-    globalRemainingEndDashedFeature.getGeometry().setCoordinates(endDashedCoords);
+    globalRemainingSolidFeature.getGeometry().setCoordinates(remainingCoords);
 }
 
 function handlePositionUpdate(position) {
