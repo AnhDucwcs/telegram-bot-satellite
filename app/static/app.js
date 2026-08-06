@@ -662,14 +662,38 @@ function handleRouteResult(result, startNavigation, isReroute = false) {
     currentRouteGeoJSON = result.geojson;
     
     if (!startNavigation) {
-        // Just previewing route, clear all and draw single blue line
+        // Preview route with dashed walk lines
         routeSource.clear();
-        const format = new ol.format.GeoJSON();
-        const features = format.readFeatures(currentRouteGeoJSON, {
-            dataProjection: 'EPSG:4326',
-            featureProjection: 'EPSG:3857'
-        });
-        routeSource.addFeatures(features);
+        let previewCoords;
+        if (currentRouteGeoJSON.type === 'FeatureCollection') {
+            previewCoords = currentRouteGeoJSON.features[0].geometry.coordinates;
+        } else if (currentRouteGeoJSON.type === 'Feature') {
+            previewCoords = currentRouteGeoJSON.geometry.coordinates;
+        } else {
+            previewCoords = currentRouteGeoJSON.coordinates;
+        }
+        
+        const dashedStyle = new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(59, 130, 246, 0.6)', width: 6, lineDash: [10, 10] }) });
+        const solidStyle = new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#3b82f6', width: 6 }) });
+        
+        if (previewCoords && previewCoords.length >= 3) {
+            const toProj = c => ol.proj.fromLonLat(c);
+            // Dashed: original → snapped
+            const startDash = new ol.Feature({ geometry: new ol.geom.LineString([toProj(previewCoords[0]), toProj(previewCoords[1])]) });
+            startDash.setStyle(dashedStyle);
+            // Solid: snapped → ... → snapped
+            const midCoords = previewCoords.slice(1, -1).map(toProj);
+            const solid = new ol.Feature({ geometry: new ol.geom.LineString(midCoords) });
+            solid.setStyle(solidStyle);
+            // Dashed: snapped → original
+            const endDash = new ol.Feature({ geometry: new ol.geom.LineString([toProj(previewCoords[previewCoords.length - 2]), toProj(previewCoords[previewCoords.length - 1])]) });
+            endDash.setStyle(dashedStyle);
+            routeSource.addFeatures([solid, startDash, endDash]);
+        } else {
+            const format = new ol.format.GeoJSON();
+            const features = format.readFeatures(currentRouteGeoJSON, { dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
+            routeSource.addFeatures(features);
+        }
     } else {
         // During navigation, don't draw raw GeoJSON, let updateRouteDisplay handle it
         if (!isReroute) {
