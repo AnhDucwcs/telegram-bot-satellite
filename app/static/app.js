@@ -1155,8 +1155,15 @@ function handlePositionUpdate(position) {
         calculateRoute(true, true);
     }
     
+    let threshold = 50;
+    // Tăng mức chịu đựng (tolerance) lên nếu người dùng đang ở chặng đi bộ đầu tiên (chưa lên xe)
+    // Điều này khớp với max_dist_m=200.0 bên backend, tránh vòng lặp re-routing liên tục
+    if (closestIndex === 0 && routeSegments.length > 0 && routeSegments[0].color === 'walk') {
+        threshold = 200; 
+    }
+    
     // Deviation Rerouting
-    if (minDistance > 50 && (now - lastRerouteTime > 15000)) {
+    if (minDistance > threshold && (now - lastRerouteTime > 15000)) {
         isRerouting = true;
         lastRerouteTime = now;
         showToast("Lệch tuyến! Đang tính lại...");
